@@ -300,8 +300,6 @@ async def run_story_step():
         logging.error(
             "Script interrupted due to unexpected error. State NOT saved for this run."
         )
-    finally:
-        logging.info("--- Story Step Finished --- ")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ def make_gemini_image(
 ) -> bytes | None:
     client = genai.Client(api_key=api_key)
 
-    logging.info(f"Making an image with prompt: {prompt[:100]}...")
+    logging.info(f"Making an image with prompt: {prompt}...")
 
     try:
         response = client.models.generate_images(

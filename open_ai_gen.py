@@ -341,6 +341,10 @@ def generate_imagen_prompt(
             "content": json.dumps({"story": current_story, "styling": styling}),
         },
     ]
+    logging.info(
+        f"Generating an image prompt using styling: {styling[:100]} "
+        f"and story: {current_story[:100]}...{current_story[-100:]}"
+    )
 
     # Call the ChatCompletion endpoint with strict tool calling
     response = openai_client.chat.completions.create(
