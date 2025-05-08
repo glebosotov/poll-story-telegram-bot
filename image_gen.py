@@ -7,12 +7,9 @@ from google.genai import types
 def make_gemini_image(
     api_key: str,
     model: str,
-    prompt_start: str,
-    prompt_end: str,
+    prompt,
 ) -> bytes | None:
     client = genai.Client(api_key=api_key)
-
-    prompt = f"{prompt_start} {prompt_end}"
 
     logging.info(f"Making an image with prompt: {prompt[:100]}...")
 

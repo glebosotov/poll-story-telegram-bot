@@ -34,7 +34,11 @@ def load_state():
         return default_state
 
 
-def save_state(state):
+def save_state(current_story, last_poll_message_id):
+    state = {
+        current_story_key: current_story,
+        last_poll_message_id_key: last_poll_message_id,
+    }
     try:
         with open(STATE_FILE, "w", encoding="utf-8") as f:
             json.dump(state, f, ensure_ascii=False, indent=4)

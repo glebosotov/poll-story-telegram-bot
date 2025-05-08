@@ -9,8 +9,12 @@ from openai import OpenAI, OpenAIError
 from telegram import Bot, Message, Poll, ReplyParameters
 
 from image_gen import make_gemini_image
-from state import load_state, save_state
-from story_gen import generate_poll_options_openai, generate_story_continuation_openai
+from open_ai_gen import (
+    generate_imagen_prompt,
+    generate_poll_options_openai,
+    generate_story_continuation_openai,
+)
+from state import current_story_key, last_poll_message_id_key, load_state, save_state
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,7 +23,6 @@ logging.basicConfig(
 
 # --- Configuration ---
 load_dotenv()
-print(os.getenv("MAX_CONTEXT_CHARS", 15000))
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
@@ -29,7 +32,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL")
 IMAGE_PROMPT_START = os.getenv("IMAGE_PROMPT_START")
 DRY_RUN = os.getenv("DRY_RUN", False)
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gemini-2.5-pro-preview-05-06")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL")
 MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", 15000))
 
 
@@ -69,9 +72,7 @@ def validate_config():
     return valid
 
 
-# --- Core Story Logic --- #
 async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str | None:
-    """Stops the specified poll and returns the winning option text, or None if no winner/error."""
     if message_id is None:
         logging.warning("No message ID provided to get_poll_winner.")
         return None
@@ -81,7 +82,6 @@ async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str 
         updated_poll: Poll = await bot.stop_poll(chat_id=chat_id, message_id=message_id)
         logging.info(f"Poll stopped (Message ID: {message_id}).")
 
-        # Determine the winner
         winning_options = []
         max_votes = -1
         for option in updated_poll.options:
@@ -93,39 +93,32 @@ async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str 
 
         if max_votes > 0 and len(winning_options) == 1:
             winner_text = winning_options[0]
-            # Use logging
             logging.info(f"Poll winner determined: '{winner_text}' ({max_votes} votes)")
             return winner_text
-        elif max_votes > 0:  # Tie
-            # Consider how to handle ties - currently picks first
-            winner_text = winning_options[0]  # Pick the first option in case of a tie
-            # Use logging
+        elif max_votes > 0:  # Tie, using random
+            winner_text = random.choice(winning_options)
             logging.warning(
                 f"Poll resulted in a tie ({len(winning_options)} options with {max_votes} votes). Picking first option: '{winner_text}'"
             )
             return winner_text
-        else:  # No votes (max_votes == 0)
+        else:
             logging.info("Poll closed with no votes. Randomly selecting a winner.")
-            if updated_poll.options:  # Ensure there are options to choose from
+            if updated_poll.options:
                 random_winner = random.choice(updated_poll.options)
                 winner_text = random_winner.text
                 logging.info(f"Randomly selected winner: '{winner_text}'")
                 return winner_text
             else:
                 logging.warning("Poll closed with no votes and no options found.")
-                return None  # Cannot pick if there were no options
+                return None
 
     except telegram.error.BadRequest as e:
         err_text = str(e).lower()
         if "poll has already been closed" in err_text:
-            # Use logging
             logging.info(
-                f"Poll (ID: {message_id}) was already closed. Attempting to fetch results directly (Currently not reliably implemented).",
+                f"Poll (ID: {message_id}) was already closed.",
                 exc_info=True,
             )
-            # NOTE: Reliably fetching results for already-closed polls is complex and often
-            # requires storing poll data yourself or using user bots/MTProto.
-            # For now, we cannot reliably get the winner in this state.
             return None
         elif "message to stop poll not found" in err_text:
             logging.error(
@@ -149,16 +142,11 @@ async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str 
 async def run_story_step():
     """Performs one step: loads state, gets winner, generates next step, posts, saves state."""
 
-    if not validate_config():
-        logging.critical("Configuration errors found. Exiting.")
-        return
-
     logging.info("--- Running Story Step --- ")
     state = load_state()
-    current_story = state.get("current_story", "")
-    last_poll_message_id = state.get("last_poll_message_id")
+    current_story = state.get(current_story_key, "")
+    last_poll_message_id = state.get(last_poll_message_id_key)
 
-    logging.info("Initializing Telegram bot...")
     bot = Bot(token=BOT_TOKEN)
 
     next_prompt: str | None = None
@@ -175,12 +163,8 @@ async def run_story_step():
                 next_prompt = poll_winner
             else:
                 logging.warning(
-                    f"No winner determined from the last poll (ID: {last_poll_message_id}). Using initial idea or fallback."
+                    f"No winner determined from the last poll (ID: {last_poll_message_id}). Using fallback."
                 )
-                next_prompt = INITIAL_STORY_IDEA
-        else:
-            logging.info("No last poll ID found in state. Using INITIAL_STORY_IDEA.")
-            next_prompt = INITIAL_STORY_IDEA
 
         new_story_part = None
         if not current_story:
@@ -209,11 +193,18 @@ async def run_story_step():
                 OPENAI_MODEL,
                 MAX_CONTEXT_CHARS,
             )
+
+            imagen_prompt = generate_imagen_prompt(
+                openai_client,
+                new_story_part,
+                IMAGE_PROMPT_START,
+                OPENAI_MODEL,
+            )
+
             image = make_gemini_image(
                 GEMINI_API_KEY,
                 GEMINI_IMAGE_MODEL,
-                IMAGE_PROMPT_START,
-                new_story_part,
+                imagen_prompt or new_story_part,
             )
 
             if new_story_part and new_story_part.strip():
@@ -234,7 +225,6 @@ async def run_story_step():
                     )
                     logging.info("New story part sent.")
                     current_story += new_story_part
-                    logging.info("Story context updated.")
                 except telegram.error.TelegramError as e:
                     logging.error(f"Failed to send new story part: {e}", exc_info=True)
                     raise
@@ -260,7 +250,7 @@ async def run_story_step():
         else:
             truncated_options = [opt[:90] for opt in poll_options]
             logging.info(
-                f"Generated {len(truncated_options)} poll options (truncated if needed). First option: '{truncated_options[0]}'..."
+                f"Generated {len(truncated_options)} poll options (truncated if needed)."
             )
             try:
                 reply_params = (
@@ -282,13 +272,8 @@ async def run_story_step():
                 )
                 new_poll_message_id = None
 
-        # 4. Save State for Next Run (Only if this point is reached without errors)
-        state_to_save = {
-            "current_story": current_story,
-            "last_poll_message_id": new_poll_message_id,
-        }
         if not DRY_RUN:
-            save_state(state_to_save)
+            save_state(current_story, new_poll_message_id)
         else:
             logging.info("DRY_RUN is enabled. State not saved. ")
         logging.info("--- Story Step Completed Successfully --- ")
@@ -324,6 +309,7 @@ if __name__ == "__main__":
 
     if not validate_config():
         logging.critical("Configuration validation failed. Check .env")
+        exit(1)
     openai_client = OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
 
     logging.info("Configuration validated. Running async story step.")

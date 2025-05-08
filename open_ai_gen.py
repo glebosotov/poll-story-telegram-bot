@@ -279,3 +279,86 @@ def generate_poll_options_openai(
             f"Unexpected error during poll option generation: {e}", exc_info=True
         )
         return None
+
+
+def generate_imagen_prompt(
+    openai_client: OpenAI,
+    current_story: str,
+    styling: str,
+    OPENAI_MODEL: str,
+) -> str:
+    """
+    Generates a formatted prompt for image generation (e.g., Google Imagen) by
+    combining a narrative story and styling instructions using OpenAI's function
+    calling feature with strict function invocation.
+
+    Args:
+        openai_client (OpenAI): The OpenAI client instance.
+        current_story (str): The current story context to be included in the prompt.
+        styling (str): The styling instructions for the image generation.
+        OPENAI_MODEL (str): The OpenAI model to use for generating the prompt.
+
+    Returns:
+        str: The combined, formatted prompt ready for image generation.
+    """
+    # Define the function schema for the model to call
+    # Define the tool schema for the model to call
+    tools = {
+        "type": "function",
+        "function": {
+            "name": "format_image_prompt",
+            "description": "Combines story and styling into a single image generation prompt.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "The fully formatted and optimized image generation prompt.",
+                    }
+                },
+                "required": ["prompt"],
+            },
+        },
+    }
+
+    # Prepare messages
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an expert prompt engineer. Transform the provided 'story' into a concise, vivid scene "
+                "description optimized for image generation (highlight key visual elements, mood, and composition). "
+                "Also refine the raw 'styling' into a bullet-point list of clear style directives (e.g., art style, lighting, color palette, mood, composition). "
+                "Return exactly one tool call to 'format_image_prompt' with a JSON object containing:\n"
+                '{\n  "prompt": "..."\n}\n'
+                "Where the 'prompt' string includes two formatted sections:\n"
+                "[STYLING]\n- ...bullet points...\n\n"
+                "[SCENE DESCRIPTION]\n...revised narrative...\n"
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps({"story": current_story, "styling": styling}),
+        },
+    ]
+
+    # Call the ChatCompletion endpoint with strict tool calling
+    response = openai_client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=messages,
+        tools=tools,
+        tool_choice={
+            "type": "function",
+            "function": {"name": "format_image_prompt"},
+        },
+    )
+
+    tool_call = response.choices[0].message.tool_calls[0]
+    if tool_call.function.name == "format_image_prompt":
+        arguments = json.loads(tool_call.function.arguments)
+        prompt = arguments.get("prompt")
+        if prompt:
+            return prompt
+        else:
+            logging.error("OpenAI did not return a valid prompt in the function call.")
+    return None
