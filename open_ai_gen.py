@@ -10,6 +10,7 @@ def generate_story_continuation_openai(
     user_choice: str,
     OPENAI_MODEL: str,
     MAX_CONTEXT_CHARS: int = 4096,
+    end_story: bool = False,
 ) -> str | None:
     """Calls OpenAI API to get the next story part using strict function calling.
 
@@ -71,6 +72,37 @@ def generate_story_continuation_openai(
 Выбор пользователя: '{user_choice}'
 
 Напиши следующие три параграфа, используя инструмент 'write_story_part'."""
+
+    if end_story:
+        system_prompt = f"""
+Ты — самый великий современный творческий писатель, завершающий интерактивную историю на русском языке.
+Тебе дан предыдущий текст истории.
+
+Твоя задача — написать ЗАВЕРШАЮЩИЕ ТРИ ПАРАГРАФА истории, органично подводя итоги и развязывая все сюжетные ниточки под влиянием выбора пользователя. Каждый параграф должен быть отделён пустой строкой и не превышать указанных «темпоральных» масштабов:
+
+<temporal>
+Фоновое описание финальных событий = ≈ 6 часов  
+Диалог, раскрывающий мотивацию и итоги = ≈ 10 минут  
+Внутренний монолог, осмысление пройденного пути = ≈ 1 час  
+Переход к эпилогу (“прошёл месяц/год…”) = ≈ 48 часов  
+</temporal>
+
+### Правила написания ###
+– Никогда не обращайся к персонажу “герой” или “героиня”, давай им имя.  
+– Всю историю нужно завершить связно, логично и эмоционально насыщенно: развяжи конфликты, ответь на ключевые вопросы, покажи, как изменились герои.  
+– Избегай шаблонных фраз и штампов: в разделе «reasoning» укажи две банальности, которых ты сознательно избежишь.  
+– Не ломай четвертую стену, не упоминай «AI SLOP».  
+
+### Правила ответа ###
+– Верни результат ТОЛЬКО в формате JSON, используя инструмент `write_story_part` с полями:
+  1. `reasoning` — твои мысли о том, как ты завершишь историю и какие две банальности ты избежишь;  
+  2. `story_part` — тексты трёх заключительных параграфов истории.  
+
+Не добавляй никакого другого текста.
+
+Предыдущая история:
+{truncated_story}
+"""
 
     story_tool = {
         "type": "function",
@@ -155,22 +187,15 @@ def generate_poll_options_openai(
     openai_client: OpenAI,
     full_story_context: str,
     OPENAI_MODEL: str,
+    END_STORY_OPTION: str,
     MAX_CONTEXT_CHARS: int = 4096,
+    make_end_story_option: bool = False,
 ) -> list[str] | None:
     """Calls OpenAI API to get 4 poll options using strict function calling.
 
     Returns:
         A list of 4 distinct poll options (max 90 chars each), or None if API call fails.
     """
-    if not openai_client:
-        logging.warning("OpenAI client not available. Skipping poll option generation.")
-        # Return placeholder options if needed for testing w/o API key
-        return [
-            "Placeholder Option 1?",
-            "Placeholder Option 2!",
-            "Placeholder Option 3...",
-            "Placeholder Option 4.",
-        ]
 
     logging.info("Generating poll options via OpenAI...")
 
@@ -247,6 +272,8 @@ def generate_poll_options_openai(
             ):
                 # Further validation: ensure options are not empty and trim whitespace/length
                 validated_options = [opt.strip()[:90] for opt in options if opt.strip()]
+                if make_end_story_option:
+                    validated_options[3] = END_STORY_OPTION
                 if len(validated_options) == 4:
                     logging.info(f"OpenAI Poll Options generated: {validated_options}")
                     return validated_options
