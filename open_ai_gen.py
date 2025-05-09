@@ -8,8 +8,8 @@ def generate_story_continuation_openai(
     openai_client: OpenAI,
     current_story: str,
     user_choice: str,
-    OPENAI_MODEL: str,
-    MAX_CONTEXT_CHARS: int = 4096,
+    openai_model: str,
+    max_context_chars: int = 4096,
     end_story: bool = False,
 ) -> str | None:
     """Calls OpenAI API to get the next story part using strict function calling.
@@ -25,11 +25,11 @@ def generate_story_continuation_openai(
 
     # Truncate context if too long (simple tail truncation)
     truncated_story = current_story
-    if len(current_story) > MAX_CONTEXT_CHARS:
+    if len(current_story) > max_context_chars:
         logging.warning(
-            f"Current story context ({len(current_story)} chars) exceeds limit ({MAX_CONTEXT_CHARS}). Truncating."
+            f"Current story context ({len(current_story)} chars) exceeds limit ({max_context_chars}). Truncating."
         )
-        truncated_story = current_story[-MAX_CONTEXT_CHARS:]
+        truncated_story = current_story[-max_context_chars:]
     # MAIN PROMPT
     system_prompt = """
 Ты - самый великий современный творческий писатель, продолжающий интерактивную историю на русском языке. 
@@ -130,7 +130,7 @@ def generate_story_continuation_openai(
 
     try:
         response = openai_client.chat.completions.create(
-            model=OPENAI_MODEL,
+            model=openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -187,8 +187,8 @@ def generate_poll_options_openai(
     openai_client: OpenAI,
     full_story_context: str,
     OPENAI_MODEL: str,
-    END_STORY_OPTION: str,
-    MAX_CONTEXT_CHARS: int = 4096,
+    end_story_option: str,
+    max_context_chars: int = 4096,
     make_end_story_option: bool = False,
 ) -> list[str] | None:
     """Calls OpenAI API to get 4 poll options using strict function calling.
@@ -200,7 +200,7 @@ def generate_poll_options_openai(
     logging.info("Generating poll options via OpenAI...")
 
     # Truncate context if too long
-    truncated_context = full_story_context[-MAX_CONTEXT_CHARS:]
+    truncated_context = full_story_context[-max_context_chars:]
 
     system_prompt = """Ты - помощник для интерактивной истории на русском языке. 
 Тебе дан ПОЛНЫЙ текущий текст истории. Твоя задача - придумать ровно 4 КОРОТКИХ (максимум 90 символов!) и ФУНДАМЕНТАЛЬНО РАЗНЫХ варианта продолжения сюжета для опроса в Telegram. 
@@ -273,7 +273,7 @@ def generate_poll_options_openai(
                 # Further validation: ensure options are not empty and trim whitespace/length
                 validated_options = [opt.strip()[:90] for opt in options if opt.strip()]
                 if make_end_story_option:
-                    validated_options[3] = END_STORY_OPTION
+                    validated_options[3] = end_story_option
                 if len(validated_options) == 4:
                     logging.info(f"OpenAI Poll Options generated: {validated_options}")
                     return validated_options
@@ -312,7 +312,7 @@ def generate_imagen_prompt(
     openai_client: OpenAI,
     current_story: str,
     styling: str,
-    OPENAI_MODEL: str,
+    openai_model: str,
 ) -> str:
     """
     Generates a formatted prompt for image generation (e.g., Google Imagen) by
@@ -375,7 +375,7 @@ def generate_imagen_prompt(
 
     # Call the ChatCompletion endpoint with strict tool calling
     response = openai_client.chat.completions.create(
-        model=OPENAI_MODEL,
+        model=openai_model,
         messages=messages,
         tools=tools,
         tool_choice={
