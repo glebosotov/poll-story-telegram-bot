@@ -1,3 +1,5 @@
+"""Generate an image using the Gemini API."""
+
 import logging
 
 from google import genai
@@ -7,8 +9,9 @@ from google.genai import types
 def make_gemini_image(
     api_key: str,
     model: str,
-    prompt,
+    prompt: str,
 ) -> bytes | None:
+    """Generate an image using the Gemini API."""
     client = genai.Client(api_key=api_key)
 
     logging.info(f"Making an image with prompt: {prompt}...")
@@ -22,9 +25,7 @@ def make_gemini_image(
             ),
         )
 
-        bytes = response.generated_images[0].image.image_bytes
-
-        return bytes
+        return response.generated_images[0].image.image_bytes
     except Exception as e:
         logging.error(f"Error generating image: {e}")
         return None
