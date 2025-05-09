@@ -1,13 +1,14 @@
+
 # Проект интерактивной истории на базе Telegram-бота и LLM
 
 Этот проект представляет собой Telegram-бота, который ведёт интерактивную историю в стиле киберпанка, используя OpenAI и Google Gemini (Imagen) для генерации текстовых продолжений и иллюстраций.
 
 ## Функциональность
 
-* Автоматическая генерация продолжения истории на русском языке с помощью OpenAI (функция `generate_story_continuation_openai`).
-* Генерация вариантов опроса для дальнейшего развития сюжета (функция `generate_poll_options_openai`).
-* Формирование промптов для генерации изображений (функция `generate_imagen_prompt`).
-* Генерация иллюстраций к сценам истории с помощью Google Gemini Imagen (функция `make_gemini_image`).
+* Автоматическая генерация продолжения истории на русском языке с помощью OpenAI (функция [`generate_story_continuation_openai`](open_ai_gen.py)).
+* Генерация вариантов опроса для дальнейшего развития сюжета (функция [`generate_poll_options_openai`](open_ai_gen.py)).
+* Формирование промптов для генерации изображений (функция [`generate_imagen_prompt`](open_ai_gen.py)).
+* Генерация иллюстраций к сценам истории с помощью Google Gemini Imagen (функция [`make_gemini_image`](image_gen.py)).
 * Хранение состояния истории, публикация сообщений и опросов в указанный канал Telegram.
 
 ## Требования
@@ -15,68 +16,75 @@
 * Python 3.9+
 * Установленные зависимости из `requirements.txt` (примерный список ниже):
 
-  ```text
-  python-dotenv
-  openai
-  google-genai
-  python-telegram-bot
-  ```
+    ```text
+    python-dotenv
+    openai
+    google-genai
+    python-telegram-bot
+    ```
 
 ## Установка
 
 1. Склонируйте репозиторий:
 
-   ```bash
-   git clone <URL_репозитория>
-   cd <папка_проекта>
-   ```
+    ```bash
+    git clone <URL_репозитория>
+    cd <папка_проекта>
+    ```
 
 2. Создайте и активируйте виртуальное окружение:
 
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/macOS
-   venv\Scripts\activate    # Windows
-   ```
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # Linux/macOS
+    venv\Scripts\activate    # Windows
+    ```
 
 3. Установите зависимости:
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    Рассмотрите возможность использования [uv](https://github.com/astral-sh/uv) для более быстрой установки зависимостей.
+
+    ```bash
+    pip install uv
+    uv sync
+    ```
 
 ## Конфигурация
 
 1. Скопируйте файл окружения и переименуйте его:
 
-   ```bash
-   cp .env.example .env
-   ```
+    ```bash
+    cp .env.example .env
+    ```
 
 2. Откройте `.env` и заполните значения:
 
-   ```dotenv
-   # Telegram-бот
-   BOT_TOKEN="<токен_бота>"
-   CHANNEL_ID="<ID_канала_или_чата>"
+    ```dotenv
+    # Telegram-бот
+    BOT_TOKEN="<токен_бота>"
+    CHANNEL_ID="<ID_канала_или_чата>"
 
-   # Режим отладки
-   DRY_RUN=true  # true — не сохранять состояние в файл (для тестирования)
+    # Режим отладки
+    DRY_RUN=true  # true — не сохранять состояние в файл (для тестирования)
 
-   # OpenAI (текст)
-   OPENAI_API_KEY="<ключ_OpenAI>"
-   OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-   OPENAI_MODEL="gemini-2.5-pro-preview-05-06"
+    # OpenAI (текст)
+    OPENAI_API_KEY="<ключ_OpenAI>"
+    OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+    OPENAI_MODEL="gemini-2.5-pro-preview-05-06"
 
-   # Google Gemini (Imagen)
-   GEMINI_API_KEY="<ключ_Gemini>"
-   GEMINI_IMAGE_MODEL=imagen-3.0-generate-002
-   IMAGE_PROMPT_START="<начальный_промпт_для_изображений>"
+    # Google Gemini (Imagen)
+    GEMINI_API_KEY="<ключ_Gemini>"
+    GEMINI_IMAGE_MODEL=imagen-3.0-generate-002
+    IMAGE_PROMPT_START="<начальный_промпт_для_изображений>"
 
-   # Ограничения контекста и длины истории
-   MAX_CONTEXT_CHARS=150000
-   STORY_MAX_SENTENCES=500
-   ```
+    # Ограничения контекста и длины истории
+    MAX_CONTEXT_CHARS=150000
+    STORY_MAX_SENTENCES=500
+    ```
 
 ## Запуск
 
@@ -97,28 +105,38 @@ python main.py
 ├── open_ai_gen.py      # Функции для работы с OpenAI (текст и промпты)
 ├── image_gen.py        # Функция генерации изображений через Google Gemini Imagen
 ├── state.py            # Модуль сохранения/загрузки состояния истории
+├── telegram_poster.py  # Модуль для публикации контента в Telegram
 ├── requirements.txt    # Зависимости проекта
 └── README.md           # Документация (этот файл)
 ```
 
 ## Описание ключевых модулей
 
-* **main.py**
-
+* **[`main.py`](main.py )**
   * Настройка логирования.
-  * Загрузка `.env`.
-  * Функция `run_story_step` — единичный шаг обработки: остановка предыдущего опроса, генерация продолжения, публикация текста, изображений и опроса.
+  * Загрузка [`.env`](.env ).
+  * Функция [`run_story_step`](main.py ) — единичный шаг обработки: остановка предыдущего опроса, генерация продолжения, публикация текста, изображений и опроса.
 
 * **open\_ai\_gen.py**
-
-  * `generate_story_continuation_openai` — получает от OpenAI функцию продолжения истории с жёсткими правилами форматирования.
-  * `generate_poll_options_openai` — получает 4 варианта ответов для опроса.
-  * `generate_imagen_prompt` — формирует оптимизированный промпт для генерации изображения.
+  * [`generate_story_continuation_openai`](open_ai_gen.py ) — получает от OpenAI функцию продолжения истории с жёсткими правилами форматирования.
+  * [`generate_poll_options_openai`](open_ai_gen.py ) — получает 4 варианта ответов для опроса.
+  * [`generate_imagen_prompt`](open_ai_gen.py ) — формирует оптимизированный промпт для генерации изображения.
 
 * **image\_gen.py**
+  * [`make_gemini_image`](image_gen.py ) — отправляет запрос к Google Gemini Imagen и возвращает байты изображения.
 
-  * `make_gemini_image` — отправляет запрос к Google Gemini Imagen и возвращает байты изображения.
+* **[`state.py`](state.py )**
+  * Функции [`load_state`](state.py ) и [`save_state`](state.py ) для хранения текущего текста истории, ID последнего опроса и флага завершения.
 
-* **state.py**
+* **[`telegram_poster.py`](telegram_poster.py )**
+  * Функция [`run_story_step`](telegram_poster.py ) — оркестрирует шаги публикации контента в Telegram: генерация текста, изображений и опросов.
+  * Функция [`get_poll_winner`](telegram_poster.py ) — определяет победителя в опросе.
 
-  * Функции `load_state` и `save_state` для хранения текущего текста истории, ID последнего опроса и флага завершения.
+## Линтинг и форматирование
+
+Для проверки стиля кода рекомендуется использовать [ruff](https://github.com/astral-sh/ruff).
+
+```bash
+pip install ruff
+ruff check .
+ruff format .
