@@ -89,6 +89,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
     new_story_part: str | None = None
     new_story_part_message: Message | None = None
     finish_story = False
+    sentences = 0
 
     try:
         # try to get next prompt from poll
