@@ -8,13 +8,14 @@ from openai import OpenAI, OpenAIError
 from config import Config
 
 
-def generate_story_continuation(
+def generate_story_continuation(  # noqa: PLR0913
     openai_client: OpenAI,
+    main_idea: str,
     current_story: str,
     user_choice: str,
     config: Config,
     end_story: bool = False,
-) -> str | None:
+) -> tuple[str, str] | None:
     """Call OpenAI API to get the next story part using strict function calling."""
     truncated_story = current_story
     if len(current_story) > config.max_context_chars:
@@ -26,6 +27,7 @@ def generate_story_continuation(
     # MAIN PROMPT
     system_prompt = """
 Ты - самый великий современный творческий писатель, продолжающий интерактивную историю на русском языке.
+Читатель контролирует историю и может влиять на ее направление, но ты имеешь основную нить сюжета и она соответствует традиционным канонам.
 Тебе дан предыдущий текст истории и выбор пользователя (победитель опроса), который определяет следующее направление.
 
 Твоя задача - написать СЛЕДУЮЩИЕ ТРИ ПАРАГРАФА истории, органично продолжая сюжет под влиянием выбора пользователя. Каждый параграф должен быть отделен пустой строкой.
@@ -33,7 +35,7 @@ def generate_story_continuation(
 ###Правила напсиания###
 - Никогда не обращайся к персонажу "герой" или "героиня", давай им имя.
 
-- Ты прекрасно знаешь как писать интересно и креативно. Твоя задча интерактивно менять историю, в зависимости от событий в рассказе - но вся история ДОЛЖНА БЫТЬ СВЯЗНОЙ.
+- Ты прекрасно знаешь как писать интересно и креативно. Твоя задча интерактивно менять историю, в зависимости от событий в рассказе - но вся история ДОЛЖНА БЫТЬ СВЯЗНОЙ и СЛЕДОВАТЬ ОСНОВНОЙ ИДЕЕ.
 
 - Никогда не пиши с "AI SLOP"
 
@@ -52,6 +54,7 @@ def generate_story_continuation(
 
 ###Правила ответа###
 - Возвращай результат ТОЛЬКО в формате JSON, используя предоставленный инструмент 'write_story_part' с полями:
+- 'main_idea' - основная идея истории, которую ты должен учитывать при написании. она может слегка меняться от той что дана, но не должна быть изменена кардинально;
 - 'reasoning' - твои мысли о том, как ты продолжишь историю чтобы действия пользователя органично вписались, добавь туда "две банальности которые ты избежишь" что избежать клише. Не параграфа на этот пункт;
 - 'story_part' - сам текст следующих трех параграфов истории, не добавляй сюда мысли из reasoning, не ломай четвертую стену, не добавляй в этот раздел мысли про банальности;
 Не добавляй никакого другого текста.
@@ -59,7 +62,11 @@ def generate_story_continuation(
 Всегда следуй ###Правила напсиания### и ###Правила ответа###.
 """  # noqa: E501
 
-    user_prompt = f"""Предыдущая история:
+    user_prompt = f"""
+Основная идея истории (если пустая, напиши с нуля, ты планируешь все историю до конца):
+{main_idea}
+
+Предыдущая история:
 {truncated_story}
 
 Выбор пользователя: '{user_choice}'
@@ -71,7 +78,7 @@ def generate_story_continuation(
 Ты — самый великий современный творческий писатель, завершающий интерактивную историю на русском языке.
 Тебе дан предыдущий текст истории.
 
-Твоя задача — написать ЗАВЕРШАЮЩИЕ ТРИ ПАРАГРАФА истории, органично подводя итоги и развязывая все сюжетные ниточки под влиянием выбора пользователя. Каждый параграф должен быть отделён пустой строкой и не превышать указанных «темпоральных» масштабов:
+Твоя задача — написать ЗАВЕРШАЮЩИЕ ТРИ ПАРАГРАФА истории, органично подводя итоги и развязывая все сюжетные ниточки под влиянием выбора пользователя. У тебя есть основная задумка сюжета и стоит ей следовать. Каждый параграф должен быть отделён пустой строкой и не превышать указанных «темпоральных» масштабов:
 
 <temporal>
 Фоновое описание финальных событий = ≈ 6 часов
@@ -93,6 +100,9 @@ def generate_story_continuation(
 
 Не добавляй никакого другого текста.
 
+Основная идея истории:
+{main_idea}
+
 Предыдущая история:
 {truncated_story}
 """  # noqa: E501
@@ -106,6 +116,10 @@ def generate_story_continuation(
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "main_idea": {
+                        "type": "string",
+                        "description": "Основная идея истории, которую нужно учитывать при написании.",  # noqa: E501
+                    },
                     "reasoning": {
                         "type": "string",
                         "description": "Краткое обоснование или план для следующих трех параграфов истории на русском языке.",  # noqa: E501
@@ -151,12 +165,13 @@ def generate_story_continuation(
 
             reasoning = arguments.get("reasoning", "[Обоснование не предоставлено]")
             story_part = arguments.get("story_part")
+            main_idea = arguments.get("main_idea")
             logging.info(f"OpenAI Reasoning: {reasoning}")
 
-            if story_part and story_part.strip():
+            if story_part and story_part.strip() and main_idea and main_idea.strip():
                 logging.info("OpenAI Story Part generated successfully.")
                 # Add a newline for separation, ensure it's not just whitespace
-                return "\n\n" + story_part.strip()
+                return ("\n\n" + story_part.strip(), main_idea.strip())
             logging.error(
                 "OpenAI returned arguments but 'story_part' was empty or invalid.",
             )

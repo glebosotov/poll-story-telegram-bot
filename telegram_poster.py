@@ -77,6 +77,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
     state = load_state()
     current_story = state.current_story
     last_poll_message_id = state.last_poll_message_id
+    main_idea = state.main_idea
     story_finished = state.story_finished
     if story_finished:
         logging.info("Story is already finished. Exiting.")
@@ -130,8 +131,9 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 "Generating story "
                 f"{'finish' if finish_story else f'continuation using {next_prompt}'} ",
             )
-            new_story_part = generate_story_continuation(
+            (new_story_part, new_idea) = generate_story_continuation(
                 openai_client,
+                main_idea,
                 current_story,
                 next_prompt,
                 config,
@@ -167,6 +169,18 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                     has_spoiler=True,
                 )
                 reply_parameters = ReplyParameters(photo_message.id)
+            telegram_max_message_length = 4096
+            if len(new_story_part) > telegram_max_message_length:
+                parts = [
+                    new_story_part[i : i + telegram_max_message_length]
+                    for i in range(0, len(new_story_part), telegram_max_message_length)
+                ]
+                for part in parts:
+                    new_story_part_message = await bot.send_message(
+                        chat_id=config.channel_id,
+                        text=part,
+                    )
+                    logging.info("New story part sent in multiple messages.")
             new_story_part_message = await bot.send_message(
                 chat_id=config.channel_id,
                 text=new_story_part,
@@ -227,10 +241,11 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
         if not config.dry_run:
             state = StoryState(
                 current_story,
+                new_idea,
                 new_poll_message_id,
                 finish_story,
             )
-            save_state(state)
+            save_state(state, dry_run=config.dry_run)
         else:
             logging.info("DRY_RUN is enabled. State not saved. ")
         logging.info("Story Step Completed Successfully ")
