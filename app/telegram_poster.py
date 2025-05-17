@@ -5,9 +5,6 @@ import random
 import traceback
 
 import telegram
-from openai import OpenAI
-from telegram import Bot, Message, Poll, ReplyParameters
-
 from config import Config
 from image_gen import make_gemini_image
 from open_ai_gen import (
@@ -15,7 +12,9 @@ from open_ai_gen import (
     generate_poll_options,
     generate_story_continuation,
 )
+from openai import OpenAI
 from state import StoryState, load_state, save_state
+from telegram import Bot, Message, Poll, ReplyParameters
 
 
 async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str | None:

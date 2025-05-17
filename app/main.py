@@ -4,9 +4,8 @@ import asyncio
 import logging
 import sys
 
-from openai import OpenAI
-
 from config import Config
+from openai import OpenAI
 from telegram_poster import run_story_step
 
 logging.basicConfig(

@@ -3,9 +3,8 @@
 import json
 import logging
 
-from openai import OpenAI, OpenAIError
-
 from config import Config
+from openai import OpenAI, OpenAIError
 
 
 def generate_story_continuation(  # noqa: PLR0913
