@@ -1,11 +1,12 @@
 """Datasource for the story state."""
 
-import json
 import logging
 from pathlib import Path
 from typing import NamedTuple
 
-STATE_FILE = Path(__file__).parent / "story_state.json"
+import yaml
+
+STATE_FILE = Path(__file__).parent / "story_state.yaml"
 
 current_story_key = "current_story"
 last_poll_message_id_key = "last_poll_message_id"
@@ -27,7 +28,7 @@ def load_state() -> StoryState:
     if STATE_FILE.exists():
         try:
             with open(STATE_FILE, encoding="utf-8") as f:
-                state = json.load(f)
+                state = yaml.load(f, Loader=yaml.CLoader)
                 logging.info(f"State loaded from {STATE_FILE}: {state}")
                 current_story = state.get(current_story_key, "")
                 main_idea = state.get(main_idea_key, "")
@@ -39,7 +40,7 @@ def load_state() -> StoryState:
                     last_poll_message_id,
                     story_finished,
                 )
-        except (OSError, json.JSONDecodeError) as e:
+        except OSError as e:
             logging.error(
                 f"Error loading state file {STATE_FILE}: {e}.",
             )
@@ -64,7 +65,7 @@ def save_state(
         return
     try:
         with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False, indent=4)
+            yaml.dump(state, f, allow_unicode=True)
         logging.info(f"Story state saved to {STATE_FILE}: {state}")
     except OSError as e:
         logging.error(f"Error saving state file {STATE_FILE}: {e}")

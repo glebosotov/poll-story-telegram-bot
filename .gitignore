@@ -1,5 +1,5 @@
 .venv
 .env
 __pycache__
-story_state.json
+story_state.yaml
 .ruff_cache

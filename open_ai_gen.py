@@ -13,6 +13,7 @@ def generate_story_continuation(  # noqa: PLR0913
     main_idea: str,
     current_story: str,
     user_choice: str,
+    completion: float,
     config: Config,
     end_story: bool = False,
 ) -> tuple[str, str] | None:
@@ -33,7 +34,7 @@ def generate_story_continuation(  # noqa: PLR0913
 Твоя задача - написать СЛЕДУЮЩИЕ ТРИ ПАРАГРАФА истории, органично продолжая сюжет под влиянием выбора пользователя. Каждый параграф должен быть отделен пустой строкой.
 
 ###Правила напсиания###
-- Никогда не обращайся к персонажу "герой" или "героиня", давай им имя.
+- Никогда не обращайся к персонажу "герой" или "героиня", используй их имя и не меняй его, если это не необходимо для истории.
 
 - Ты прекрасно знаешь как писать интересно и креативно. Твоя задча интерактивно менять историю, в зависимости от событий в рассказе - но вся история ДОЛЖНА БЫТЬ СВЯЗНОЙ и СЛЕДОВАТЬ ОСНОВНОЙ ИДЕЕ.
 
@@ -51,6 +52,12 @@ def generate_story_continuation(  # noqa: PLR0913
 Исторический дайджест, газетная вставка = ≈ 10 дней
 </temporal>
 
+- в случае если main_idea пуста, необходимо создать ее с нуля. это должно быть краткое описание всей будущей истории, с сюжетными ветками, развитием персонажей. История должна быть законченной и логичной, с четким началом, серединой и концом. Необходимо избегать клише и шаблонов, чтобы сделать историю уникальной и интересной.
+
+- убедись, что main_idea содержит не только завязку и абстрактное описание истории, но и конкретные события (в том числе конец истории), которые произойдут в будущем. Это поможет создать более детализированную и увлекательную историю.
+
+- меняй main_idea если выбор пользователя не совпадает с основным направлением сюжета, но избегай полной замены сюжета.
+
 
 ###Правила ответа###
 - Возвращай результат ТОЛЬКО в формате JSON, используя предоставленный инструмент 'write_story_part' с полями:
@@ -63,10 +70,10 @@ def generate_story_continuation(  # noqa: PLR0913
 """  # noqa: E501
 
     user_prompt = f"""
-Основная идея истории (если пустая, напиши с нуля, ты планируешь все историю до конца):
+Основная идея истории:
 {main_idea}
 
-Предыдущая история:
+Предыдущая история (завершена на {completion * 100}%):
 {truncated_story}
 
 Выбор пользователя: '{user_choice}'
@@ -328,6 +335,7 @@ def generate_imagen_prompt(
             "role": "system",
             "content": (
                 "You are an expert prompt engineer. Transform the provided 'story' into a concise, vivid scene "  # noqa: E501
+                "Always include descrition of the characters in the scene, mention their race (human, robot, elf, etc), their features."  # noqa: E501
                 "description optimized for image generation (highlight key visual elements, mood, and composition). "  # noqa: E501
                 "Also refine the raw 'styling' into a bullet-point list of clear style directives (e.g., art style, lighting, color palette, mood, composition). "  # noqa: E501
                 "Return exactly one tool call to 'format_image_prompt' with a JSON object containing:\n"  # noqa: E501

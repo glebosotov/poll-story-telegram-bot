@@ -2,6 +2,7 @@
 
 import logging
 import random
+import traceback
 
 import telegram
 from openai import OpenAI
@@ -111,11 +112,22 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
             logging.info("No existing story found. Posting initial idea.")
             message_to_send = config.initial_story_idea
             current_story = config.initial_story_idea
+            logging.info("Generating main idea")
+            (_, new_idea) = generate_story_continuation(
+                openai_client,
+                main_idea,
+                current_story,
+                "",
+                0,
+                config,
+            )
+            logging.info(f"Main idea generated: {new_idea}")
             logging.info(f"Sending initial story part to {config.channel_id}")
             await bot.send_message(chat_id=config.channel_id, text=message_to_send)
             logging.info("Initial story part sent.")
         else:
             sentences = len(current_story.split("."))
+            completion = sentences / config.story_max_sentences
             if sentences > config.story_max_sentences:
                 logging.info(
                     f"Current story has {sentences} sentences. "
@@ -136,6 +148,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 main_idea,
                 current_story,
                 next_prompt,
+                completion,
                 config,
                 end_story=finish_story,
             )
@@ -231,7 +244,6 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 except telegram.error.TelegramError as poll_error:
                     logging.error(
                         f"Error sending poll: {poll_error}. Skipping poll posting.",
-                        exc_info=True,
                     )
                     new_poll_message_id = None
         else:
@@ -252,7 +264,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
 
     except Exception as e:
         logging.error("\n--- An Unexpected Error Occurred During Story Step --- ")
-        logging.error(f"Error message: {e}")
+        logging.error(f"Error message: {e}, Trace: {traceback.format_exc()}")
         logging.error(
             "Script interrupted due to unexpected error. State NOT saved for this run.",
         )

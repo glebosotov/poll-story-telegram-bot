@@ -56,6 +56,8 @@ python-dotenv==1.1.0
     # via poll-story-telegram-bot (pyproject.toml)
 python-telegram-bot==22.0
     # via poll-story-telegram-bot (pyproject.toml)
+pyyaml==6.0.2
+    # via poll-story-telegram-bot (pyproject.toml)
 requests==2.32.3
     # via google-genai
 rsa==4.9.1
