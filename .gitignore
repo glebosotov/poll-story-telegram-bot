@@ -3,3 +3,4 @@
 __pycache__
 story_state.yaml
 .ruff_cache
+logs/

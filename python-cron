@@ -1,0 +1,8 @@
+# python-cron
+# ┌──────── minute (0 - 59)
+# │ ┌────── hour (0 - 23)
+# │ │ ┌──── day of month (1 - 31)
+# │ │ │ ┌── month (1 - 12)
+# │ │ │ │ ┌ day of week (0 - 6)
+# │ │ │ │ │
+0 8,14,19 * * * cd /app && python main.py >> /app/logs/app.log 2>&1

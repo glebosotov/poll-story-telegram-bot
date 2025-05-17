@@ -10,7 +10,7 @@ class Config:
     """Configuration class to load and validate environment variables."""
 
     def __init__(self) -> None:
-        load_dotenv()
+        load_dotenv("../.env")
         self.bot_token = os.getenv("BOT_TOKEN")
         self.channel_id = os.getenv("CHANNEL_ID")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
