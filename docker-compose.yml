@@ -7,5 +7,4 @@ services:
         volumes:
             - .story_state.yaml:/app/story_state.yaml
             - ./logs:/app/logs
-            - .python-cron:/etc/cron.d/python-cron
         restart: unless-stopped
