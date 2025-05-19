@@ -3,26 +3,30 @@
 import logging
 import os
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 
 class Config:
     """Configuration class to load and validate environment variables."""
 
     def __init__(self) -> None:
-        load_dotenv("../.env")
-        self.bot_token = os.getenv("BOT_TOKEN")
-        self.channel_id = os.getenv("CHANNEL_ID")
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.openai_base_url = os.getenv("OPENAI_BASE_URL")
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
-        self.gemini_image_model = os.getenv("GEMINI_IMAGE_MODEL")
-        self.image_prompt_start = os.getenv("IMAGE_PROMPT_START")
-        self.dry_run = eval(os.getenv("DRY_RUN", "False"))
-        self.openai_model = os.getenv("OPENAI_MODEL")
-        self.max_context_chars = int(os.getenv("MAX_CONTEXT_CHARS", "15000"))
-        self.initial_story_idea = os.getenv("INITIAL_STORY_IDEA")
-        self.story_max_sentences = int(os.getenv("STORY_MAX_SENTENCES", "500"))
+        config = {
+            **dotenv_values(".env"),
+            **dotenv_values("../.env"),
+            **os.environ,
+        }
+        self.bot_token = config.get("BOT_TOKEN")
+        self.channel_id = config.get("CHANNEL_ID")
+        self.openai_api_key = config.get("OPENAI_API_KEY")
+        self.openai_base_url = config.get("OPENAI_BASE_URL")
+        self.gemini_api_key = config.get("GEMINI_API_KEY")
+        self.gemini_image_model = config.get("GEMINI_IMAGE_MODEL")
+        self.image_prompt_start = config.get("IMAGE_PROMPT_START")
+        self.dry_run = eval(config.get("DRY_RUN", "False"))
+        self.openai_model = config.get("OPENAI_MODEL")
+        self.max_context_chars = int(config.get("MAX_CONTEXT_CHARS", "15000"))
+        self.initial_story_idea = config.get("INITIAL_STORY_IDEA")
+        self.story_max_sentences = int(config.get("STORY_MAX_SENTENCES", "500"))
         self.poll_question_template = "Как продолжится история?"
         self.fallback_continue_prompt = "Продолжай как считаешь нужным."
         self.end_story_option = "Закончить историю"
