@@ -6,7 +6,8 @@ from typing import NamedTuple
 
 import yaml
 
-STATE_FILE = Path(__file__).parent / "story_state.yaml"
+state_dir = Path(__file__).parent / "state"
+state_file = state_dir / "story_state.yaml"
 
 current_story_key = "current_story"
 last_poll_message_id_key = "last_poll_message_id"
@@ -25,11 +26,12 @@ class StoryState(NamedTuple):
 
 def load_state() -> StoryState:
     """Load the story state (current_story, last_poll_message_id) from the JSON file."""
-    if STATE_FILE.exists():
+    state_dir.mkdir(exist_ok=True)
+    if state_file.exists():
         try:
-            with open(STATE_FILE, encoding="utf-8") as f:
+            with open(state_file, encoding="utf-8") as f:
                 state = yaml.load(f, Loader=yaml.CLoader)
-                logging.info(f"State loaded from {STATE_FILE}: {state}")
+                logging.info(f"State loaded from {state_file}: {state}")
                 current_story = state.get(current_story_key, "")
                 main_idea = state.get(main_idea_key, "")
                 last_poll_message_id = state.get(last_poll_message_id_key, None)
@@ -42,7 +44,7 @@ def load_state() -> StoryState:
                 )
         except OSError as e:
             logging.error(
-                f"Error loading state file {STATE_FILE}: {e}.",
+                f"Error loading state file {state_file}: {e}.",
             )
     else:
         logging.info("State file not found.")
@@ -61,11 +63,11 @@ def save_state(
         story_finished_key: state.story_finished,
     }
     if dry_run:
-        logging.info(f"Dry run: not saving to {STATE_FILE}")
+        logging.info(f"Dry run: not saving to {state_file}")
         return
     try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
+        with open(state_file, "w", encoding="utf-8") as f:
             yaml.dump(state, f, allow_unicode=True)
-        logging.info(f"Story state saved to {STATE_FILE}: {state}")
+        logging.info(f"Story state saved to {state_file}: {state}")
     except OSError as e:
-        logging.error(f"Error saving state file {STATE_FILE}: {e}")
+        logging.error(f"Error saving state file {state_file}: {e}")

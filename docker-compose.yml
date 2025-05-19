@@ -5,6 +5,6 @@ services:
         env_file:
             - .env
         volumes:
-            - .story_state.yaml:/app/story_state.yaml
+            - ./state:/app/state
             - ./logs:/app/logs
         restart: unless-stopped
