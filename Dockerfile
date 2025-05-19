@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 3) Copy application code + entrypoint
 COPY ./app /app
 COPY entrypoint.sh /app/entrypoint.sh
+COPY run-cron-job.sh /app/run-cron-job.sh
 
 # 4) Copy default crontab into cron.d
 COPY python-cron /etc/cron.d/python-cron
