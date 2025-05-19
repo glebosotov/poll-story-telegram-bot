@@ -1,142 +1,223 @@
+<div id="top">
 
-# Проект интерактивной истории на базе Telegram-бота и LLM
+<!-- HEADER STYLE: CLASSIC -->
+<div align="center">
 
-Этот проект представляет собой Telegram-бота, который ведёт интерактивную историю в стиле киберпанка, используя OpenAI и Google Gemini (Imagen) для генерации текстовых продолжений и иллюстраций.
+<img src="./assets/logo.png" width="30%" style="position: relative; top: 0; right: 0;" alt="Project Logo"/>
 
-## Функциональность
+# POLL-STORY-TELEGRAM-BOT
 
-* Автоматическая генерация продолжения истории на русском языке с помощью OpenAI (функция [`generate_story_continuation_openai`](open_ai_gen.py)).
-* Генерация вариантов опроса для дальнейшего развития сюжета (функция [`generate_poll_options_openai`](open_ai_gen.py)).
-* Формирование промптов для генерации изображений (функция [`generate_imagen_prompt`](open_ai_gen.py)).
-* Генерация иллюстраций к сценам истории с помощью Google Gemini Imagen (функция [`make_gemini_image`](image_gen.py)).
-* Хранение состояния истории, публикация сообщений и опросов в указанный канал Telegram.
+<em>Interactive stories, powered by AI.</em>
 
-## Требования
+<!-- BADGES -->
+<img src="https://img.shields.io/github/license/glebosotov/poll-story-telegram-bot?style=default&logo=opensourceinitiative&logoColor=white&color=0080ff" alt="license">
+<img src="https://img.shields.io/github/last-commit/glebosotov/poll-story-telegram-bot?style=default&logo=git&logoColor=white&color=0080ff" alt="last-commit">
+<img src="https://img.shields.io/github/languages/top/glebosotov/poll-story-telegram-bot?style=default&color=0080ff" alt="repo-top-language">
+<img src="https://img.shields.io/github/languages/count/glebosotov/poll-story-telegram-bot?style=default&color=0080ff" alt="repo-language-count">
 
-* Python 3.9+
-* Установленные зависимости из `requirements.txt` (примерный список ниже):
+</div>
+<br>
 
-    ```text
-    python-dotenv
-    openai
-    google-genai
-    python-telegram-bot
-    ```
+---
 
-## Установка
+## Table of Contents
 
-1. Склонируйте репозиторий:
+- [Table of Contents](#table-of-contents)
+- [Overview](#overview)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
 
-    ```bash
-    git clone <URL_репозитория>
-    cd <папка_проекта>
-    ```
+---
 
-2. Создайте и активируйте виртуальное окружение:
+## Overview
 
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # Linux/macOS
-    venv\Scripts\activate    # Windows
-    ```
+poll-story-telegram-bot is a Python-based Telegram bot that generates and posts interactive stories using OpenAI and Google's Gemini APIs, complete with automated scheduling and Dockerized deployment.
 
-3. Установите зависимости:
+**Why poll-story-telegram-bot?**
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+This project automates the creation and delivery of engaging, AI-powered stories on Telegram. The core features include:
 
-    Рассмотрите возможность использования [uv](https://github.com/astral-sh/uv) для более быстрой установки зависимостей.
+- **🟢 Automated Story Generation:**  Leverages OpenAI and Gemini APIs for seamless and creative story generation, including image creation.
+- **🟡 Interactive Narrative:**  Uses polls to guide the story's direction, creating a unique and engaging user experience.
+- **🔵 Automated Scheduling:**  A built-in cron job ensures regular story posts at pre-defined times, optimizing content delivery.
+- **🔴 Dockerized Deployment:**  Simplifies deployment and ensures consistent execution across various environments.
+- **🟣 Robust Configuration:**  Environment variables and a configuration file allow for flexible and easy customization.
+- **🟠 CI/CD Integration:**  Automated linting and Docker image publishing streamlines the development workflow.
 
-    ```bash
-    pip install uv
-    uv sync
-    ```
+---
 
-## Конфигурация
+## Project Structure
 
-1. Скопируйте файл окружения и переименуйте его:
-
-    ```bash
-    cp .env.example .env
-    ```
-
-2. Откройте `.env` и заполните значения:
-
-    ```dotenv
-    # Telegram-бот
-    BOT_TOKEN="<токен_бота>"
-    CHANNEL_ID="<ID_канала_или_чата>"
-
-    # Режим отладки
-    DRY_RUN=true  # true — не сохранять состояние в файл (для тестирования)
-
-    # OpenAI (текст)
-    OPENAI_API_KEY="<ключ_OpenAI>"
-    OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-    OPENAI_MODEL="gemini-2.5-pro-preview-05-06"
-
-    # Google Gemini (Imagen)
-    GEMINI_API_KEY="<ключ_Gemini>"
-    GEMINI_IMAGE_MODEL=imagen-3.0-generate-002
-    IMAGE_PROMPT_START="<начальный_промпт_для_изображений>"
-
-    # Ограничения контекста и длины истории
-    MAX_CONTEXT_CHARS=150000
-    STORY_MAX_SENTENCES=500
-    ```
-
-## Запуск
-
-```bash
-python main.py
+```sh
+└── poll-story-telegram-bot/
+    ├── .github
+    │   └── workflows
+    ├── Dockerfile
+    ├── LICENSE
+    ├── README.md
+    ├── app
+    │   ├── config.py
+    │   ├── image_gen.py
+    │   ├── main.py
+    │   ├── open_ai_gen.py
+    │   ├── state.py
+    │   └── telegram_poster.py
+    ├── docker-compose.yml
+    ├── entrypoint.sh
+    ├── pyproject.toml
+    ├── python-cron
+    ├── requirements.txt
+    ├── run-cron-job.sh
+    └── uv.lock
 ```
 
-* Скрипт проверит конфигурацию (`validate_config`), затем загрузит текущее состояние и выполнит один шаг истории (`run_story_step`).
-* При первом запуске публикуется начальная идея истории (`INITIAL_STORY_IDEA`).
-* Далее бот генерирует новое продолжение, публикует текст и изображение, создаёт опрос.
-* Результаты опроса влияют на дальнейшую логику сюжета.
+---
 
-## Структура проекта
+## Getting Started
 
-```text
-├── .env.example        # Пример файла окружения
-├── main.py             # Точка входа скрипта
-├── open_ai_gen.py      # Функции для работы с OpenAI (текст и промпты)
-├── image_gen.py        # Функция генерации изображений через Google Gemini Imagen
-├── state.py            # Модуль сохранения/загрузки состояния истории
-├── telegram_poster.py  # Модуль для публикации контента в Telegram
-├── requirements.txt    # Зависимости проекта
-└── README.md           # Документация (этот файл)
+### Prerequisites
+
+This project requires the following dependencies:
+
+- **Programming Language:** python
+- **Package Manager:** uv, pip
+- _[Optional]_ **Container Runtime:** docker
+
+### Installation
+
+Build poll-story-telegram-bot from the source and install dependencies:
+
+1. **Clone the repository:**
+
+    ```sh
+    ❯ git clone https://github.com/glebosotov/poll-story-telegram-bot
+    ```
+
+2. **Navigate to the project directory:**
+
+    ```sh
+    ❯ cd poll-story-telegram-bot
+    ```
+
+3. **Install the dependencies:**
+
+ [uv-shield]: <https://img.shields.io/badge/uv-DE5FE9.svg?style=for-the-badge&logo=uv&logoColor=white>
+ [uv-link]: <https://docs.astral.sh/uv/>
+
+ **Using [![uv][uv-shield]][uv-link]:**
+
+ ```sh
+ ❯ uv sync --all-extras --dev
+ ```
+
+ [pip-shield]: https://img.shields.io/badge/Pip-3776AB.svg?style={badge_style}&logo=pypi&logoColor=white
+ [pip-link]: https://pypi.org/project/pip/
+
+ **Using  [![pip][pip-shield]][pip-link]:**
+
+ ```sh
+ ❯ pip install -r requirements.txt
+ ```
+
+### Usage
+
+#### Environment Variables
+
+Setup `.env` file by running:
+
+```sh
+cp .env.example .env
 ```
 
-## Описание ключевых модулей
+Then replace the values with your own.
 
-* **[`main.py`](main.py )**
-  * Настройка логирования.
-  * Загрузка [`.env`](.env ).
-  * Функция [`run_story_step`](main.py ) — единичный шаг обработки: остановка предыдущего опроса, генерация продолжения, публикация текста, изображений и опроса.
+#### Running the script
 
-* **open\_ai\_gen.py**
-  * [`generate_story_continuation_openai`](open_ai_gen.py ) — получает от OpenAI функцию продолжения истории с жёсткими правилами форматирования.
-  * [`generate_poll_options_openai`](open_ai_gen.py ) — получает 4 варианта ответов для опроса.
-  * [`generate_imagen_prompt`](open_ai_gen.py ) — формирует оптимизированный промпт для генерации изображения.
+Run the project with:
 
-* **image\_gen.py**
-  * [`make_gemini_image`](image_gen.py ) — отправляет запрос к Google Gemini Imagen и возвращает байты изображения.
+**Using [docker](https://hub.docker.com/r/glebosotov/poll-story-telegram-bot):**
 
-* **[`state.py`](state.py )**
-  * Функции [`load_state`](state.py ) и [`save_state`](state.py ) для хранения текущего текста истории, ID последнего опроса и флага завершения.
+![Docker Image Version (tag)](https://img.shields.io/docker/v/glebosotov/poll-story-telegram-bot/latest?logo=docker&link=https%3A%2F%2Fhub.docker.com%2Fr%2Fglebosotov%2Fpoll-story-telegram-bot)
 
-* **[`telegram_poster.py`](telegram_poster.py )**
-  * Функция [`run_story_step`](telegram_poster.py ) — оркестрирует шаги публикации контента в Telegram: генерация текста, изображений и опросов.
-  * Функция [`get_poll_winner`](telegram_poster.py ) — определяет победителя в опросе.
+This execution type will run on schedule according to the `python-cron` file.
 
-## Линтинг и форматирование
+```sh
+docker compose up -d
+```
 
-Для проверки стиля кода рекомендуется использовать [ruff](https://github.com/astral-sh/ruff).
+**Using [uv](https://docs.astral.sh/uv/):**
 
-```bash
-pip install ruff
-ruff check .
-ruff format .
+```sh
+uv run python app/main.py
+```
+
+**Using [pip](https://pypi.org/project/pip/):**
+
+```sh
+python app/main.py
+```
+
+---
+
+## Contributing
+
+- **💬 [Join the Discussions](https://github.com/glebosotov/poll-story-telegram-bot/discussions)**: Share your insights, provide feedback, or ask questions.
+- **🐛 [Report Issues](https://github.com/glebosotov/poll-story-telegram-bot/issues)**: Submit bugs found or log feature requests for the `poll-story-telegram-bot` project.
+- **💡 Submit Pull Requests**: Review open PRs, and submit your own PRs.
+
+<details closed>
+<summary>Contributing Guidelines</summary>
+
+1. **Fork the Repository**: Start by forking the project repository to your github account.
+2. **Clone Locally**: Clone the forked repository to your local machine using a git client.
+
+   ```sh
+   git clone https://github.com/glebosotov/poll-story-telegram-bot
+   ```
+
+3. **Create a New Branch**: Always work on a new branch, giving it a descriptive name.
+
+   ```sh
+   git checkout -b new-feature-x
+   ```
+
+4. **Make Your Changes**: Develop and test your changes locally.
+5. **Commit Your Changes**: Commit with a clear message describing your updates.
+
+   ```sh
+   git commit -m 'feat: implemented new feature x.'
+   ```
+
+6. **Push to github**: Push the changes to your forked repository.
+
+   ```sh
+   git push origin new-feature-x
+   ```
+
+7. **Submit a Pull Request**: Create a PR against the original project repository. Clearly describe the changes and their motivations.
+8. **Review**: Once your PR is reviewed and approved, it will be merged into the main branch. Congratulations on your contribution!
+
+</details>
+
+<details closed>
+<summary>Contributor Graph</summary>
+<br>
+<p align="left">
+   <a href="https://github.com{/glebosotov/poll-story-telegram-bot/}graphs/contributors">
+      <img src="https://contrib.rocks/image?repo=glebosotov/poll-story-telegram-bot">
+   </a>
+</p>
+</details>
+
+---
+
+## License
+
+`poll-story-telegram-bot` is protected under the MIT License. For more details, refer to the LICENSE file.
+
+---

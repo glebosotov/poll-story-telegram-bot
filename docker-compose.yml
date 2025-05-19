@@ -1,10 +1,9 @@
 services:
     app:
-        build: .
-        container_name: poll-story-telegram-bot
-        env_file:
-            - .env
+        image: glebosotov/poll-story-telegram-bot:latest
+        container_name: llm-bot
         volumes:
-            - ./state:/app/state
+            - .env:/app/.env
             - ./logs:/app/logs
+            - ./state:/app/state
         restart: unless-stopped
