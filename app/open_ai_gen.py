@@ -300,6 +300,7 @@ def generate_poll_options(
 def generate_imagen_prompt(
     openai_client: OpenAI,
     current_story: str,
+    main_idea: str,
     styling: str,
     openai_model: str,
 ) -> str | None:
@@ -333,9 +334,11 @@ def generate_imagen_prompt(
         {
             "role": "system",
             "content": (
-                "You are an expert prompt engineer. Transform the provided 'story' into a concise, vivid scene "  # noqa: E501
-                "Always include descrition of the characters in the scene, mention their race (human, robot, elf, etc), their features."  # noqa: E501
+                "You are an expert prompt engineer. Transform the provided 'story' into a concise, vivid scene. "  # noqa: E501
+                "Always include descrition of the characters in the scene, mention their race (human, robot, elf, etc), their features. "  # noqa: E501
+                "If a character has undergone a race change or otherwise changed their appearance, do not use their previous form. "  # noqa: E501
                 "description optimized for image generation (highlight key visual elements, mood, and composition). "  # noqa: E501
+                "For context you may use the 'main_idea', but ALWAYS make the scene using the 'story' value."  # noqa: E501
                 "Also refine the raw 'styling' into a bullet-point list of clear style directives (e.g., art style, lighting, color palette, mood, composition). "  # noqa: E501
                 "Return exactly one tool call to 'format_image_prompt' with a JSON object containing:\n"  # noqa: E501
                 '{\n  "prompt": "..."\n}\n'
@@ -346,7 +349,13 @@ def generate_imagen_prompt(
         },
         {
             "role": "user",
-            "content": json.dumps({"story": current_story, "styling": styling}),
+            "content": json.dumps(
+                {
+                    "story": current_story,
+                    "styling": styling,
+                    "main_idea": main_idea,
+                },
+            ),
         },
     ]
     logging.info(

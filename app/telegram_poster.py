@@ -155,6 +155,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
             imagen_prompt = generate_imagen_prompt(
                 openai_client,
                 new_story_part,
+                new_idea,
                 config.image_prompt_start,
                 config.openai_model,
             )
