@@ -1,121 +1,153 @@
-import base64
-import json
 import logging
 import pytest
 from unittest.mock import patch, MagicMock
+from app.google_tts import generate_audio_from_text
+from google.generativeai import types as genai_types # Renamed to avoid conflict
+from google.api_core import exceptions as google_exceptions
 
-import requests # Import the actual requests library for requests.exceptions.RequestException
-
-from app.google_tts import generate_audio_from_text, API_ENDPOINT
-
-# Configure logging for testing (e.g., to check caplog)
+# Configure logging for testing
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-class TestGoogleTTS:
-    def test_generate_audio_from_text_success(self, caplog):
-        """Test successful audio generation."""
-        fake_audio_bytes = b"fake_audio_bytes_content"
-        encoded_audio = base64.b64encode(fake_audio_bytes).decode('utf-8')
-        mock_response_data = {"audioContent": encoded_audio}
+class TestGoogleTTSWithSDK:
+    @patch('app.google_tts.genai.Client')
+    def test_generate_audio_from_text_success(self, mock_genai_client_class, caplog):
+        """Test successful audio generation using the Generative AI SDK."""
+        mock_client_instance = MagicMock()
+        mock_genai_client_class.return_value = mock_client_instance
 
-        with patch('app.google_tts.requests.post') as mock_post:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_response.json.return_value = mock_response_data
-            mock_post.return_value = mock_response
+        fake_audio_bytes = b"fake_sdk_audio_bytes_content"
+        
+        # Constructing the mock response structure based on SDK
+        mock_response = MagicMock()
+        mock_candidate = MagicMock()
+        mock_part = MagicMock()
+        mock_part.inline_data.data = fake_audio_bytes
+        mock_candidate.content.parts = [mock_part]
+        mock_response.candidates = [mock_candidate]
+        
+        mock_client_instance.generate_content.return_value = mock_response
 
-            api_key = "fake_api_key_success"
-            text_to_synthesize = "This is a test text for TTS."
-            model_name = "test-model-001"
+        api_key = "fake_gemini_api_key_success"
+        text_to_synthesize = "This is a test text for SDK TTS."
 
-            result = generate_audio_from_text(text_to_synthesize, api_key, model_name)
+        result = generate_audio_from_text(text_to_synthesize, api_key)
 
-            assert result == fake_audio_bytes
-
-            expected_headers = {
-                "X-Goog-Api-Key": api_key,
-                "Content-Type": "application/json; charset=utf-8",
-            }
-            expected_payload = {
-                "input": {"text": text_to_synthesize},
-                "voice": {"languageCode": "ru-RU", "name": "ru-RU-Standard-D"},
-                "audioConfig": {"audioEncoding": "MP3"},
-                "model": model_name,
-            }
-
-            mock_post.assert_called_once_with(
-                API_ENDPOINT,
-                headers=expected_headers,
-                data=json.dumps(expected_payload)
-            )
+        assert result == fake_audio_bytes
+        mock_genai_client_class.assert_called_once_with(api_key=api_key)
+        
+        # Assert that generate_content was called correctly
+        mock_client_instance.generate_content.assert_called_once()
+        args, kwargs = mock_client_instance.generate_content.call_args
+        
+        assert kwargs.get('model') == "gemini-2.5-pro-preview-tts"
+        assert kwargs.get('contents') == text_to_synthesize
+        
+        generation_config = kwargs.get('generation_config')
+        assert isinstance(generation_config, genai_types.GenerationConfig)
+        assert generation_config.response_modalities == ["AUDIO"]
+        
+        speech_config = generation_config.speech_config
+        assert isinstance(speech_config, genai_types.SpeechConfig)
+        assert isinstance(speech_config.voice_config, genai_types.VoiceConfig)
+        assert isinstance(speech_config.voice_config.prebuilt_voice_config, genai_types.PrebuiltVoiceConfig)
+        assert speech_config.voice_config.prebuilt_voice_config.voice_name == 'Kore'
             
-            assert any(record.levelno == logging.INFO and f"Successfully synthesized audio for text: {text_to_synthesize[:50]}" in record.message for record in caplog.records)
+        assert any(record.levelno == logging.INFO and f"Successfully synthesized audio for text: {text_to_synthesize[:50]}" in record.message for record in caplog.records)
+
+    @patch('app.google_tts.genai.Client')
+    def test_generate_audio_from_text_sdk_api_error(self, mock_genai_client_class, caplog):
+        """Test handling of GoogleAPIError from the SDK."""
+        mock_client_instance = MagicMock()
+        mock_genai_client_class.return_value = mock_client_instance
+        
+        # Simulate an API error
+        mock_client_instance.generate_content.side_effect = google_exceptions.GoogleAPIError("SDK API Error")
+
+        api_key = "fake_gemini_api_key_sdk_error"
+        text_to_synthesize = "Test text for SDK API error."
+
+        result = generate_audio_from_text(text_to_synthesize, api_key)
+
+        assert result is None
+        mock_genai_client_class.assert_called_once_with(api_key=api_key)
+        mock_client_instance.generate_content.assert_called_once() # Ensure it was called
+        assert any(record.levelno == logging.ERROR and "Google API error during TTS generation: SDK API Error" in record.message for record in caplog.records)
+
+    @patch('app.google_tts.genai.Client')
+    def test_generate_audio_from_text_sdk_unexpected_exception(self, mock_genai_client_class, caplog):
+        """Test handling of an unexpected exception during SDK operation."""
+        mock_client_instance = MagicMock()
+        mock_genai_client_class.return_value = mock_client_instance
+        
+        mock_client_instance.generate_content.side_effect = Exception("Unexpected SDK problem")
+
+        api_key = "fake_gemini_api_key_unexpected_error"
+        text_to_synthesize = "Test text for unexpected SDK error."
+
+        result = generate_audio_from_text(text_to_synthesize, api_key)
+
+        assert result is None
+        mock_genai_client_class.assert_called_once_with(api_key=api_key)
+        mock_client_instance.generate_content.assert_called_once()
+        assert any(record.levelno == logging.ERROR and "An unexpected error occurred during TTS generation with Generative AI SDK: Unexpected SDK problem" in record.message for record in caplog.records)
+
+    @patch('app.google_tts.genai.Client')
+    def test_generate_audio_from_text_sdk_no_candidates(self, mock_genai_client_class, caplog):
+        """Test handling when SDK response has no candidates."""
+        mock_client_instance = MagicMock()
+        mock_genai_client_class.return_value = mock_client_instance
+
+        mock_response = MagicMock()
+        mock_response.candidates = [] # No candidates
+        mock_client_instance.generate_content.return_value = mock_response
+
+        api_key = "fake_gemini_api_key_no_candidates"
+        text_to_synthesize = "Test text for no candidates."
+
+        result = generate_audio_from_text(text_to_synthesize, api_key)
+
+        assert result is None
+        assert any(record.levelno == logging.ERROR and "No valid candidates or parts found" in record.message for record in caplog.records)
+
+    @patch('app.google_tts.genai.Client')
+    def test_generate_audio_from_text_sdk_no_parts(self, mock_genai_client_class, caplog):
+        """Test handling when SDK response candidate has no parts."""
+        mock_client_instance = MagicMock()
+        mock_genai_client_class.return_value = mock_client_instance
+
+        mock_response = MagicMock()
+        mock_candidate = MagicMock()
+        mock_candidate.content.parts = [] # No parts
+        mock_response.candidates = [mock_candidate]
+        mock_client_instance.generate_content.return_value = mock_response
+        
+        api_key = "fake_gemini_api_key_no_parts"
+        text_to_synthesize = "Test text for no parts in candidate."
+
+        result = generate_audio_from_text(text_to_synthesize, api_key)
+        
+        assert result is None
+        assert any(record.levelno == logging.ERROR and "No valid candidates or parts found" in record.message for record in caplog.records)
 
 
-    def test_generate_audio_from_text_api_error(self, caplog):
-        """Test handling of API error (e.g., 500 status code)."""
-        with patch('app.google_tts.requests.post') as mock_post:
-            mock_response = MagicMock()
-            mock_response.status_code = 500
-            mock_response.text = "Internal Server Error"
-            mock_post.return_value = mock_response
+    @patch('app.google_tts.genai.Client')
+    def test_generate_audio_from_text_sdk_missing_audio_data(self, mock_genai_client_class, caplog):
+        """Test handling when audio data is missing in a successful SDK response structure."""
+        mock_client_instance = MagicMock()
+        mock_genai_client_class.return_value = mock_client_instance
 
-            api_key = "fake_api_key_api_error"
-            text_to_synthesize = "Test text for API error."
+        mock_response = MagicMock()
+        mock_candidate = MagicMock()
+        mock_part = MagicMock()
+        mock_part.inline_data.data = None # Audio data is None
+        mock_candidate.content.parts = [mock_part]
+        mock_response.candidates = [mock_candidate]
+        mock_client_instance.generate_content.return_value = mock_response
 
-            result = generate_audio_from_text(text_to_synthesize, api_key)
+        api_key = "fake_gemini_api_key_missing_data"
+        text_to_synthesize = "Test text for missing audio data in SDK."
 
-            assert result is None
-            mock_post.assert_called_once()
-            # Check that an error was logged
-            assert any(record.levelno == logging.ERROR and "Failed to synthesize audio. Status: 500" in record.message for record in caplog.records)
+        result = generate_audio_from_text(text_to_synthesize, api_key)
 
-    def test_generate_audio_from_text_request_exception(self, caplog):
-        """Test handling of a requests.exceptions.RequestException."""
-        with patch('app.google_tts.requests.post') as mock_post:
-            mock_post.side_effect = requests.exceptions.RequestException("Network error")
-
-            api_key = "fake_api_key_request_exception"
-            text_to_synthesize = "Test text for request exception."
-
-            result = generate_audio_from_text(text_to_synthesize, api_key)
-
-            assert result is None
-            mock_post.assert_called_once()
-            # Check that an error was logged
-            assert any(record.levelno == logging.ERROR and "Request to Google TTS API failed: Network error" in record.message for record in caplog.records)
-
-    def test_generate_audio_from_text_json_decode_error(self, caplog):
-        """Test handling of JSONDecodeError when parsing API response."""
-        with patch('app.google_tts.requests.post') as mock_post:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            # Configure json.loads to raise JSONDecodeError
-            mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "doc", 0)
-            mock_post.return_value = mock_response
-
-            api_key = "fake_api_key_json_error"
-            text_to_synthesize = "Test text for JSON decode error."
-
-            result = generate_audio_from_text(text_to_synthesize, api_key)
-
-            assert result is None
-            mock_post.assert_called_once()
-            assert any(record.levelno == logging.ERROR and "Failed to decode JSON response" in record.message for record in caplog.records)
-
-    def test_generate_audio_from_text_missing_audio_content(self, caplog):
-        """Test handling when 'audioContent' is missing in a successful response."""
-        with patch('app.google_tts.requests.post') as mock_post:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_response.json.return_value = {"notAudioContent": "some_value"} # Missing 'audioContent'
-            mock_post.return_value = mock_response
-
-            api_key = "fake_api_key_missing_content"
-            text_to_synthesize = "Test text for missing audio content."
-
-            result = generate_audio_from_text(text_to_synthesize, api_key)
-
-            assert result is None
-            mock_post.assert_called_once()
-            assert any(record.levelno == logging.ERROR and "Audio content is missing" in record.message for record in caplog.records)
+        assert result is None
+        assert any(record.levelno == logging.ERROR and "Audio data is missing in the successful response" in record.message for record in caplog.records)

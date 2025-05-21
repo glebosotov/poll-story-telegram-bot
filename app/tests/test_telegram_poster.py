@@ -30,7 +30,7 @@ def mock_config():
     config.poll_question_template = "What next?"
     config.fallback_continue_prompt = "Continue."
     config.end_story_option = "End story."
-    config.google_tts_api_key = "fake_google_tts_key" # Default for successful audio
+    # config.google_tts_api_key is removed, gemini_api_key is used for TTS
     return config
 
 @pytest.fixture
@@ -94,7 +94,7 @@ async def test_run_story_step_sends_audio_on_success(
     await run_story_step(mock_config, mock_openai_client)
 
     mock_generate_audio_from_text.assert_called_once_with(
-        text=new_story_text, api_key=mock_config.google_tts_api_key
+        text=new_story_text, api_key=mock_config.gemini_api_key # Ensure gemini_api_key is used
     )
     
     # Check if send_voice was called correctly
@@ -164,10 +164,10 @@ async def test_run_story_step_no_audio_on_tts_failure(
     await run_story_step(mock_config, mock_openai_client)
 
     mock_generate_audio_from_text.assert_called_once_with(
-        text=new_story_text, api_key=mock_config.google_tts_api_key
+        text=new_story_text, api_key=mock_config.gemini_api_key # Ensure gemini_api_key is used
     )
     mock_bot_instance.send_voice.assert_not_called()
-    assert "Audio generation failed. Skipping voice message." in caplog.text
+    assert "Audio generation failed or returned no data. Skipping voice message." in caplog.text # Updated log message
     assert mock_save_state.called
 
 @pytest.mark.asyncio
@@ -189,7 +189,7 @@ async def test_run_story_step_no_audio_if_key_missing(
     mock_config, mock_openai_client, mock_story_state, caplog
 ):
     """Test that audio is NOT generated or sent if the TTS API key is missing."""
-    mock_config.google_tts_api_key = None # Key is missing
+    mock_config.gemini_api_key = None # Set gemini_api_key to None for this test
     mock_load_state.return_value = mock_story_state
     mock_get_poll_winner.return_value = "User choice"
     
@@ -205,9 +205,11 @@ async def test_run_story_step_no_audio_if_key_missing(
 
     await run_story_step(mock_config, mock_openai_client)
 
-    mock_generate_audio_from_text.assert_not_called()
+    # generate_audio_from_text should NOT be called because of the `if config.gemini_api_key:` check
+    # directly in telegram_poster.py before calling generate_audio_from_text
+    mock_generate_audio_from_text.assert_not_called() 
     mock_bot_instance.send_voice.assert_not_called()
-    assert "Google TTS API key not configured. Skipping audio generation." in caplog.text
+    assert "GEMINI_API_KEY (for TTS) is not configured. Skipping audio generation." in caplog.text # Updated log message
     assert mock_save_state.called
 
 @pytest.mark.asyncio

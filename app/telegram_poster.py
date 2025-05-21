@@ -204,14 +204,14 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
             current_story += new_story_part
 
             # Generate and send TTS audio if available
-            if new_story_part and config.google_tts_api_key:
-                logging.info(f"Attempting to generate audio for: {new_story_part[:100]}...")
-                audio_bytes = generate_audio_from_text(
-                    text=new_story_part, api_key=config.google_tts_api_key
-                )
-                if audio_bytes:
-                    logging.info("Audio generated successfully.")
-                    if new_story_part_message:
+            if new_story_part and new_story_part_message: # Check if there's text and a message to reply to
+                if config.gemini_api_key: # Check if API key for TTS (now Gemini) is available
+                    logging.info(f"Attempting to generate audio for: {new_story_part[:100]}...")
+                    audio_bytes = generate_audio_from_text(
+                        text=new_story_part, api_key=config.gemini_api_key # Use Gemini API key
+                    )
+                    if audio_bytes:
+                        logging.info("Audio generated successfully.")
                         try:
                             await bot.send_voice(
                                 chat_id=config.channel_id,
@@ -227,13 +227,12 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                         except telegram.error.TelegramError as e:
                             logging.error(f"Failed to send voice message: {e}")
                     else:
-                        logging.warning(
-                            "Audio generated, but no story message object to reply to."
-                        )
+                        logging.warning("Audio generation failed or returned no data. Skipping voice message.")
                 else:
-                    logging.warning("Audio generation failed. Skipping voice message.")
-            elif not config.google_tts_api_key:
-                logging.info("Google TTS API key not configured. Skipping audio generation.")
+                    logging.info("GEMINI_API_KEY (for TTS) is not configured. Skipping audio generation.")
+            elif new_story_part: # Story part exists but no message to reply to (should be rare)
+                 logging.warning("Audio generation skipped: story part exists, but no message object to reply to.")
+
 
         if not finish_story:
             logging.info("Generating poll options based on current story...")

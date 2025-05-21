@@ -1,98 +1,96 @@
-import base64
-import json
 import logging
-import requests
+import google.generativeai as genai
+from google.generativeai import types
+from google.api_core import exceptions as google_exceptions # For specific error handling
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-API_ENDPOINT = "https://texttospeech.googleapis.com/v1beta1/text:synthesize"
-
-def generate_audio_from_text(text: str, api_key: str, model_name: str = "gemini-1.5-flash-001") -> bytes | None:
+def generate_audio_from_text(text: str, api_key: str) -> bytes | None:
     """
-    Generates audio from text using Google Text-to-Speech API.
+    Generates audio from text using the Google Generative AI SDK.
 
     Args:
         text: The text to synthesize.
-        api_key: The Google Cloud API key.
-        model_name: The name of the model to use for synthesis.
+        api_key: The Google Gemini API key.
 
     Returns:
         The audio content in bytes if successful, None otherwise.
     """
-    headers = {
-        "X-Goog-Api-Key": api_key,
-        "Content-Type": "application/json; charset=utf-8",
-    }
-
-    payload = {
-        "input": {"text": text},
-        "voice": {"languageCode": "ru-RU", "name": "ru-RU-Standard-D"},
-        "audioConfig": {"audioEncoding": "MP3"},
-        "model": model_name,
-    }
-
     try:
-        response = requests.post(API_ENDPOINT, headers=headers, data=json.dumps(payload))
+        client = genai.Client(api_key=api_key)
 
-        if response.status_code == 200:
-            response_json = response.json()
-            audio_content_base64 = response_json.get("audioContent")
-            if audio_content_base64:
+        response = client.generate_content(
+            model="gemini-2.5-pro-preview-tts", # Using the specified "pro" model
+            contents=text,
+            generation_config=types.GenerationConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name='Kore')
+                    )
+                )
+            )
+        )
+
+        if response.candidates and response.candidates[0].content.parts:
+            audio_data = response.candidates[0].content.parts[0].inline_data.data
+            if audio_data:
                 logging.info(f"Successfully synthesized audio for text: {text[:50]}...")
-                return base64.b64decode(audio_content_base64)
+                return audio_data
             else:
-                logging.error("Audio content is missing in the successful response.")
+                logging.error("Audio data is missing in the successful response from Generative AI SDK.")
                 return None
         else:
-            logging.error(
-                f"Failed to synthesize audio. Status: {response.status_code}, Response: {response.text}"
-            )
+            logging.error("No valid candidates or parts found in the response from Generative AI SDK.")
+            # Log detailed response if possible and privacy permits
+            # logging.debug(f"Full response: {response}")
             return None
 
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Request to Google TTS API failed: {e}")
-        return None
-    except json.JSONDecodeError as e:
-        logging.error(f"Failed to decode JSON response from Google TTS API: {e}")
+    except google_exceptions.GoogleAPIError as e:
+        logging.error(f"Google API error during TTS generation: {e}")
         return None
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred during TTS generation with Generative AI SDK: {e}")
         return None
 
 if __name__ == '__main__':
     # This is an example of how to use the function.
-    # You'll need to set your GOOGLE_TTS_API_KEY environment variable or pass it directly.
-    # from app.config import Config # Assuming your Config class can load this key
-    # config = Config()
-    # api_key_to_test = config.google_tts_api_key
+    # You'll need to set your GEMINI_API_KEY environment variable or pass it directly.
+    # Important: This assumes app.config.Config can be imported and initialized.
+    # If running this script standalone, you might need to adjust how api_key_to_test is obtained.
+    try:
+        from app.config import Config 
+        config = Config()
+        # Note: The task mentioned using config.gemini_api_key, so we use that.
+        # The previous version of this file used GOOGLE_TTS_API_KEY for the old API.
+        api_key_to_test = config.gemini_api_key 
+    except (ImportError, AttributeError, FileNotFoundError):
+        logging.warning(
+            "Could not load API key from app.config.Config. "
+            "Falling back to placeholder. Set GEMINI_API_KEY env var or modify script."
+        )
+        api_key_to_test = "YOUR_GEMINI_API_KEY_HERE" # IMPORTANT: Replace for testing
 
-    # Replace with your actual API key for testing if not using Config
-    api_key_to_test = "YOUR_API_KEY_HERE" # IMPORTANT: Replace before testing if not using Config
-
-    if api_key_to_test == "YOUR_API_KEY_HERE":
-        logging.warning("Please replace 'YOUR_API_KEY_HERE' with your actual API key to test the script.")
+    if not api_key_to_test or api_key_to_test == "YOUR_GEMINI_API_KEY_HERE":
+        logging.warning(
+            "Please set your GEMINI_API_KEY in .env or replace 'YOUR_GEMINI_API_KEY_HERE' "
+            "with your actual API key to test the script."
+        )
     else:
-        sample_text = "Привет, мир! Это тестовое сообщение для проверки синтеза речи."
-        logging.info(f"Attempting to synthesize text: '{sample_text}'")
+        sample_text = "Привет, мир! Это тестовое сообщение для проверки синтеза речи с помощью нового SDK."
+        logging.info(f"Attempting to synthesize text: '{sample_text}' using Gemini API Key.")
+        
         audio_bytes = generate_audio_from_text(sample_text, api_key_to_test)
 
         if audio_bytes:
             try:
-                with open("test_audio.mp3", "wb") as f:
+                with open("test_audio_sdk.mp3", "wb") as f:
                     f.write(audio_bytes)
-                logging.info("Test audio successfully saved to test_audio.mp3")
+                logging.info("Test audio successfully saved to test_audio_sdk.mp3")
             except IOError as e:
                 logging.error(f"Failed to write audio to file: {e}")
         else:
-            logging.error("Failed to generate audio for the sample text.")
-
-    # Example with a different voice (if you want to explore)
-    # payload_custom_voice = {
-    #     "input": {"text": text},
-    #     "voice": {"languageCode": "ru-RU", "name": "ru-RU-Wavenet-A"}, # Example Wavenet voice
-    #     "audioConfig": {"audioEncoding": "MP3"},
-    #     "model": model_name,
-    # }
-    # You would need to modify the function to accept voice parameters or create a new one.
-    # logging.info("Note: The main block is for testing and will not run in production.")
+            logging.error("Failed to generate audio for the sample text using SDK.")
+    
+    logging.info("Note: The main block is for testing and will not run in production if imported.")
