@@ -21,6 +21,7 @@ class Config:
         self.openai_base_url = config.get("OPENAI_BASE_URL")
         self.gemini_api_key = config.get("GEMINI_API_KEY")
         self.gemini_image_model = config.get("GEMINI_IMAGE_MODEL")
+        self.gemini_tts_model = config.get("GEMINI_TTS_MODEL")
         self.image_prompt_start = config.get("IMAGE_PROMPT_START")
         self.dry_run = eval(config.get("DRY_RUN", "False"))
         self.openai_model = config.get("OPENAI_MODEL")

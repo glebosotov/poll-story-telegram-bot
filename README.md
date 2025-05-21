@@ -62,6 +62,7 @@ This project automates the creation and delivery of engaging, AI-powered stories
     ├── README.md
     ├── app
     │   ├── config.py
+    │   ├── google_tts.py
     │   ├── image_gen.py
     │   ├── main.py
     │   ├── open_ai_gen.py
@@ -135,18 +136,6 @@ cp .env.example .env
 ```
 
 Then replace the values with your own.
-
-- `BOT_TOKEN`: Your Telegram Bot Token.
-- `CHANNEL_ID`: The ID of the Telegram channel where the story will be posted.
-- `OPENAI_API_KEY`: Your API key for OpenAI (used for story and image prompt generation).
-- `OPENAI_BASE_URL`: The base URL for the OpenAI compatible API (e.g. Together.ai, anyscale, etc.).
-- `GEMINI_API_KEY`: Your API key for Google Gemini (used for image generation and Text-to-Speech audio narration). If not provided, image generation and audio narration will be skipped.
-- `GEMINI_IMAGE_MODEL`: The specific Gemini image model to use (e.g., `imagen-3.0-generate-002`).
-- `IMAGE_PROMPT_START`: A starting phrase or style guide for the image generation prompts.
-- `INITIAL_STORY_IDEA`: The initial text or theme to kickstart the story.
-- `MAX_CONTEXT_CHARS`: Maximum characters of the current story to feed back into the AI for context.
-- `STORY_MAX_SENTENCES`: Approximate maximum number of sentences before the story attempts to conclude.
-- `DRY_RUN`: Set to `true` to run the script without actually posting to Telegram or saving state (useful for testing).
 
 #### Running the script
 

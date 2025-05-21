@@ -6,6 +6,7 @@ import traceback
 
 import telegram
 from config import Config
+from google_tts import generate_audio_from_text
 from image_gen import make_gemini_image
 from open_ai_gen import (
     generate_imagen_prompt,
@@ -15,7 +16,6 @@ from open_ai_gen import (
 from openai import OpenAI
 from state import StoryState, load_state, save_state
 from telegram import Bot, Message, Poll, ReplyParameters
-from app.google_tts import generate_audio_from_text
 
 
 async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str | None:
@@ -92,6 +92,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
     new_story_part_message: Message | None = None
     finish_story = False
     sentences = 0
+    audio: bytes | None = None
 
     try:
         # try to get next prompt from poll
@@ -121,9 +122,26 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 0,
                 config,
             )
+            if config.gemini_tts_model:
+                audio = await generate_audio_from_text(
+                    config.gemini_api_key,
+                    config.gemini_tts_model,
+                    current_story,
+                )
             logging.info(f"Main idea generated: {new_idea}")
             logging.info(f"Sending initial story part to {config.channel_id}")
-            await bot.send_message(chat_id=config.channel_id, text=message_to_send)
+            message = await bot.send_message(
+                chat_id=config.channel_id,
+                text=message_to_send,
+            )
+            if audio:
+                reply_parameters = ReplyParameters(message.message_id)
+                await bot.send_audio(
+                    chat_id=config.channel_id,
+                    audio=audio,
+                    reply_parameters=reply_parameters,
+                )
+                logging.info("Audio sent.")
             logging.info("Initial story part sent.")
         else:
             sentences = len(current_story.split("."))
@@ -166,6 +184,12 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 config.gemini_image_model,
                 imagen_prompt or new_story_part,
             )
+            if config.gemini_tts_model:
+                audio = generate_audio_from_text(
+                    config.gemini_api_key,
+                    config.gemini_tts_model,
+                    new_story_part,
+                )
 
             if not new_story_part or new_story_part.strip() == "":
                 logging.error(
@@ -195,45 +219,22 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                         text=part,
                     )
                     logging.info("New story part sent in multiple messages.")
-            new_story_part_message = await bot.send_message(
-                chat_id=config.channel_id,
-                text=new_story_part,
-                reply_parameters=reply_parameters,
-            )
-            logging.info("New story part sent.")
+            else:
+                new_story_part_message = await bot.send_message(
+                    chat_id=config.channel_id,
+                    text=new_story_part,
+                    reply_parameters=reply_parameters,
+                )
+                logging.info("New story part sent.")
+            if audio:
+                reply_parameters = ReplyParameters(new_story_part_message.message_id)
+                await bot.send_audio(
+                    chat_id=config.channel_id,
+                    audio=audio,
+                    reply_parameters=reply_parameters,
+                )
+                logging.info("Audio sent.")
             current_story += new_story_part
-
-            # Generate and send TTS audio if available
-            if new_story_part and new_story_part_message: # Check if there's text and a message to reply to
-                if config.gemini_api_key: # Check if API key for TTS (now Gemini) is available
-                    logging.info(f"Attempting to generate audio for: {new_story_part[:100]}...")
-                    audio_bytes = generate_audio_from_text(
-                        text=new_story_part, api_key=config.gemini_api_key # Use Gemini API key
-                    )
-                    if audio_bytes:
-                        logging.info("Audio generated successfully.")
-                        try:
-                            await bot.send_voice(
-                                chat_id=config.channel_id,
-                                voice=audio_bytes,
-                                reply_parameters=ReplyParameters(
-                                    message_id=new_story_part_message.message_id
-                                ),
-                            )
-                            logging.info(
-                                "Voice message sent successfully as reply to"
-                                f" message {new_story_part_message.message_id}.",
-                            )
-                        except telegram.error.TelegramError as e:
-                            logging.error(f"Failed to send voice message: {e}")
-                    else:
-                        logging.warning("Audio generation failed or returned no data. Skipping voice message.")
-                else:
-                    logging.info("GEMINI_API_KEY (for TTS) is not configured. Skipping audio generation.")
-            elif new_story_part: # Story part exists but no message to reply to (should be rare)
-                 logging.warning("Audio generation skipped: story part exists, but no message object to reply to.")
-
-
         if not finish_story:
             logging.info("Generating poll options based on current story...")
             make_end_story_option = False

@@ -18,6 +18,10 @@ charset-normalizer==3.4.2
     # via requests
 distro==1.9.0
     # via openai
+ffmpeg-python==0.2.0
+    # via poll-story-telegram-bot (pyproject.toml)
+future==1.0.0
+    # via ffmpeg-python
 google-auth==2.40.1
     # via google-genai
 google-genai==1.14.0
