@@ -5,6 +5,7 @@ description = "A Telegram bot for creating continuous stories with polls."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "ffmpeg-python>=0.2.0",
     "google-genai>=1.14.0",
     "openai>=1.78.0",
     "python-dotenv>=1.1.0",

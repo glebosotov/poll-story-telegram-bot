@@ -62,6 +62,7 @@ This project automates the creation and delivery of engaging, AI-powered stories
     ├── README.md
     ├── app
     │   ├── config.py
+    │   ├── google_tts.py
     │   ├── image_gen.py
     │   ├── main.py
     │   ├── open_ai_gen.py

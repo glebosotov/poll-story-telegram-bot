@@ -21,6 +21,7 @@ class Config:
         self.openai_base_url = config.get("OPENAI_BASE_URL")
         self.gemini_api_key = config.get("GEMINI_API_KEY")
         self.gemini_image_model = config.get("GEMINI_IMAGE_MODEL")
+        self.gemini_tts_model = config.get("GEMINI_TTS_MODEL")
         self.image_prompt_start = config.get("IMAGE_PROMPT_START")
         self.dry_run = eval(config.get("DRY_RUN", "False"))
         self.openai_model = config.get("OPENAI_MODEL")
@@ -59,4 +60,6 @@ class Config:
         if not self.initial_story_idea:
             logging.error("INITIAL_STORY_IDEA cannot be empty.")
             valid = False
+        if not self.gemini_tts_model:
+            logging.warning("GEMINI_TTS_MODEL is not set. Audio will not be generated.")
         return valid
