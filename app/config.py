@@ -27,6 +27,7 @@ class Config:
         self.max_context_chars = int(config.get("MAX_CONTEXT_CHARS", "15000"))
         self.initial_story_idea = config.get("INITIAL_STORY_IDEA")
         self.story_max_sentences = int(config.get("STORY_MAX_SENTENCES", "500"))
+        self.google_tts_api_key = config.get("GOOGLE_TTS_API_KEY")
         self.poll_question_template = "Как продолжится история?"
         self.fallback_continue_prompt = "Продолжай как считаешь нужным."
         self.end_story_option = "Закончить историю"
@@ -58,5 +59,8 @@ class Config:
             valid = False
         if not self.initial_story_idea:
             logging.error("INITIAL_STORY_IDEA cannot be empty.")
+            valid = False
+        if not self.google_tts_api_key:
+            logging.error("GOOGLE_TTS_API_KEY is not set correctly.")
             valid = False
         return valid
