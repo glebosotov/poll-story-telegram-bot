@@ -123,8 +123,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 config,
             )
             if config.gemini_tts_model:
-                audio = await generate_audio_from_text(
-                    config.gemini_api_key,
+                audio = generate_audio_from_text(
                     config.gemini_tts_model,
                     current_story,
                 )
@@ -140,7 +139,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                     chat_id=config.channel_id,
                     audio=audio,
                     reply_parameters=reply_parameters,
-                    title="Озвучка",
+                    filename="poll-story-telegram-bot",
                 )
                 logging.info("Audio sent.")
             logging.info("Initial story part sent.")
@@ -181,13 +180,11 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
             )
 
             image = make_gemini_image(
-                config.gemini_api_key,
                 config.gemini_image_model,
                 imagen_prompt or new_story_part,
             )
             if config.gemini_tts_model:
                 audio = generate_audio_from_text(
-                    config.gemini_api_key,
                     config.gemini_tts_model,
                     new_story_part,
                 )
@@ -233,7 +230,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                     chat_id=config.channel_id,
                     audio=audio,
                     reply_parameters=reply_parameters,
-                    title="Озвучка",
+                    filename="poll-story-telegram-bot",
                 )
                 logging.info("Audio sent.")
             current_story += new_story_part

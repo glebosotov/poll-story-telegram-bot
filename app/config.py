@@ -3,7 +3,7 @@
 import logging
 import os
 
-from dotenv import dotenv_values
+from dotenv import dotenv_values, load_dotenv
 
 
 class Config:
@@ -15,11 +15,12 @@ class Config:
             **dotenv_values("../.env"),
             **os.environ,
         }
+        load_dotenv()
         self.bot_token = config.get("BOT_TOKEN")
         self.channel_id = config.get("CHANNEL_ID")
         self.openai_api_key = config.get("OPENAI_API_KEY")
         self.openai_base_url = config.get("OPENAI_BASE_URL")
-        self.gemini_api_key = config.get("GEMINI_API_KEY")
+        self.google_api_key = config.get("GOOGLE_API_KEY")
         self.gemini_image_model = config.get("GEMINI_IMAGE_MODEL")
         self.gemini_tts_model = config.get("GEMINI_TTS_MODEL")
         self.image_prompt_start = config.get("IMAGE_PROMPT_START")
@@ -48,12 +49,12 @@ class Config:
             logging.error("Missing OpenAI API key or base URL.")
             valid = False
         if (
-            not self.gemini_api_key
+            not self.google_api_key
             or not self.gemini_image_model
             or not self.image_prompt_start
         ):
             logging.error(
-                "GEMINI_API_KEY and GEMINI_IMAGE_MODEL "
+                "GOOGLE_API_KEY and GEMINI_IMAGE_MODEL "
                 "and IMAGE_PROMPT_START cannot be empty.",
             )
             valid = False

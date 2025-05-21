@@ -16,15 +16,19 @@ certifi==2025.4.26
     #   requests
 charset-normalizer==3.4.2
     # via requests
+deprecated==1.2.18
+    # via
+    #   opentelemetry-api
+    #   opentelemetry-semantic-conventions
 distro==1.9.0
     # via openai
 ffmpeg-python==0.2.0
     # via poll-story-telegram-bot (pyproject.toml)
 future==1.0.0
     # via ffmpeg-python
-google-auth==2.40.1
+google-auth==2.40.2
     # via google-genai
-google-genai==1.14.0
+google-genai==1.16.1
     # via poll-story-telegram-bot (pyproject.toml)
 h11==0.16.0
     # via httpcore
@@ -40,10 +44,29 @@ idna==3.10
     #   anyio
     #   httpx
     #   requests
-jiter==0.9.0
+importlib-metadata==8.6.1
+    # via opentelemetry-api
+jiter==0.10.0
     # via openai
-openai==1.78.0
+openai==1.81.0
     # via poll-story-telegram-bot (pyproject.toml)
+opentelemetry-api==1.33.1
+    # via
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-httpx
+    #   opentelemetry-semantic-conventions
+opentelemetry-instrumentation==0.54b1
+    # via opentelemetry-instrumentation-httpx
+opentelemetry-instrumentation-httpx==0.54b1
+    # via poll-story-telegram-bot (pyproject.toml)
+opentelemetry-semantic-conventions==0.54b1
+    # via
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-httpx
+opentelemetry-util-http==0.54b1
+    # via opentelemetry-instrumentation-httpx
+packaging==25.0
+    # via opentelemetry-instrumentation
 pyasn1==0.6.1
     # via
     #   pyasn1-modules
@@ -58,7 +81,7 @@ pydantic-core==2.33.2
     # via pydantic
 python-dotenv==1.1.0
     # via poll-story-telegram-bot (pyproject.toml)
-python-telegram-bot==22.0
+python-telegram-bot==22.1
     # via poll-story-telegram-bot (pyproject.toml)
 pyyaml==6.0.2
     # via poll-story-telegram-bot (pyproject.toml)
@@ -79,9 +102,16 @@ typing-extensions==4.13.2
     #   pydantic
     #   pydantic-core
     #   typing-inspection
-typing-inspection==0.4.0
+typing-inspection==0.4.1
     # via pydantic
 urllib3==2.4.0
     # via requests
 websockets==15.0.1
     # via google-genai
+wrapt==1.17.2
+    # via
+    #   deprecated
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-httpx
+zipp==3.21.0
+    # via importlib-metadata

@@ -1,6 +1,7 @@
 """Generate audio from text using the Google Gemini SDK."""
 
 import logging
+import traceback
 
 import ffmpeg
 from google import genai
@@ -8,30 +9,45 @@ from google.genai import types
 
 
 def generate_audio_from_text(
-    api_key: str,
     model: str,
     prompt: str,
 ) -> bytes | None:
     """Generate ogg audio from text using the Google Generative AI SDK."""
     try:
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(
+            http_options=types.HttpOptions(timeout=10 * 60 * 1000),
+        )
+
+        ### temp
+        prompt = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents="Generate a short transcript "
+            "- in russian"
+            "- around 10 sentences, "
+            "- just the transcript, no other words"
+            f"It will be an audio teaser to the following text: {prompt}",
+        ).text
+        logging.info(f"Short TTS prompt: {prompt}")
+        ###
 
         contents = f"Read like a storyteller recording an audiobook: {prompt}"
+
+        config = types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name="Gacrux",
+                    ),
+                ),
+                language_code="ru-RU",
+            ),
+        )
 
         response = client.models.generate_content(
             model=model,
             contents=contents,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name="Gacrux",
-                        ),
-                    ),
-                    language_code="ru-RU",
-                ),
-            ),
+            config=config,
         )
 
         data = response.candidates[0].content.parts[0].inline_data.data
@@ -46,7 +62,10 @@ def generate_audio_from_text(
         raise Exception("Gemini returned None")
 
     except Exception as e:
-        logging.error(f"An unexpected error occurred during TTS generation: {e}")
+        logging.error(
+            f"An unexpected error occurred during TTS generation: {e}, "
+            f"{traceback.format_exc()}",
+        )
         return None
 
 
