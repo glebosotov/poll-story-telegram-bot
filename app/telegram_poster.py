@@ -140,6 +140,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                     chat_id=config.channel_id,
                     audio=audio,
                     reply_parameters=reply_parameters,
+                    title="Озвучка",
                 )
                 logging.info("Audio sent.")
             logging.info("Initial story part sent.")
@@ -232,6 +233,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                     chat_id=config.channel_id,
                     audio=audio,
                     reply_parameters=reply_parameters,
+                    title="Озвучка",
                 )
                 logging.info("Audio sent.")
             current_story += new_story_part

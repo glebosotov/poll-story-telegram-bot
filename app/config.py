@@ -60,4 +60,6 @@ class Config:
         if not self.initial_story_idea:
             logging.error("INITIAL_STORY_IDEA cannot be empty.")
             valid = False
+        if not self.gemini_tts_model:
+            logging.warning("GEMINI_TTS_MODEL is not set. Audio will not be generated.")
         return valid

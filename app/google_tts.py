@@ -16,15 +16,17 @@ def generate_audio_from_text(
     try:
         client = genai.Client(api_key=api_key)
 
+        contents = f"Read like a storyteller recording an audiobook: {prompt}"
+
         response = client.models.generate_content(
             model=model,
-            contents=prompt,
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["AUDIO"],
                 speech_config=types.SpeechConfig(
                     voice_config=types.VoiceConfig(
                         prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name="Kore",
+                            voice_name="Gacrux",
                         ),
                     ),
                     language_code="ru-RU",
