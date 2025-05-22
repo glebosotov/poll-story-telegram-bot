@@ -2,6 +2,11 @@ services:
     app:
         image: glebosotov/poll-story-telegram-bot:latest
         container_name: llm-bot
+        environment:
+            - OTEL_SERVICE_NAME=poll-story-telegram
+            - OTEL_TRACES_EXPORTER=otlp
+            - OTEL_METRICS_EXPORTER=otlp
+            - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=0.0.0.0:4317
         volumes:
             - .env:/app/.env
             - ./logs:/app/logs

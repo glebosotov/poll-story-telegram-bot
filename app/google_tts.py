@@ -25,7 +25,7 @@ def generate_audio_from_text(
             "- in russian"
             "- around 10 sentences, "
             "- just the transcript, no other words"
-            f"It will be an audio teaser to the following text: {prompt}",
+            f"Create it from the following text: {prompt}",
         ).text
         logging.info(f"Short TTS prompt: {prompt}")
         ###

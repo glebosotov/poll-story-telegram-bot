@@ -2,7 +2,7 @@ FROM python:3.13-slim
 
 # 1) Install cron
 RUN apt-get update && \
-    apt-get install -y cron ffmpeg && \
+    apt-get install -y build-essential cron ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
