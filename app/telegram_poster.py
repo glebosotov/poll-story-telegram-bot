@@ -2,7 +2,6 @@
 
 import logging
 import random
-import traceback
 
 import telegram
 from config import Config
@@ -14,23 +13,35 @@ from open_ai_gen import (
     generate_story_continuation,
 )
 from openai import OpenAI
+from opentelemetry import trace
+from opentelemetry.trace import StatusCode
 from state import StoryState, load_state, save_state
 from telegram import Bot, Message, Poll, ReplyParameters
+from telemetry import tracer
 
 
+@tracer.start_as_current_span("get_poll_winner")
 async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str | None:
     """Get the winner of a poll by stopping it and checking the results."""
+    current_span = trace.get_current_span()
+    current_span.set_attribute("message_id", message_id)
     if message_id is None:
-        logging.warning("No message ID provided to get_poll_winner.")
+        current_span.set_status(
+            StatusCode.ERROR,
+            "No message ID provided to get_poll_winner",
+        )
         return None
 
-    logging.info(f"Attempting to stop poll (Message ID: {message_id})...")
+    current_span.add_event("Attempting to stop poll")
     try:
         updated_poll: Poll = await bot.stop_poll(chat_id=chat_id, message_id=message_id)
-        logging.info(f"Poll stopped (Message ID: {message_id}).")
+        current_span.add_event("Poll stopped")
         options = updated_poll.options
         if not options:
-            logging.warning("Poll closed with no votes and no options found.")
+            current_span.set_status(
+                StatusCode.ERROR,
+                "Poll closed with no votes and no options found.",
+            )
             return None
 
         winning_options = []
@@ -44,44 +55,61 @@ async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str 
 
         if max_votes > 0 and len(winning_options) == 1:
             winner_text = winning_options[0]
-            logging.info(f"Poll winner determined: '{winner_text}' ({max_votes} votes)")
+            current_span.add_event(
+                "Poll winner determined",
+                {"winner": winner_text, "votes": max_votes},
+            )
+            current_span.set_status(StatusCode.OK)
             return winner_text
         if max_votes > 0:
             winner_text = random.choice(winning_options)
-            logging.warning(
-                f"Poll resulted in a tie ({len(winning_options)} options with "
-                f"{max_votes} votes). Picking first option: '{winner_text}'",
+            current_span.add_event(
+                "Poll winner chosen by random because of a tie",
+                {"winner": winner_text, "votes": max_votes},
             )
+            current_span.set_status(StatusCode.OK)
             return winner_text
         random_winner = random.choice(options)
         winner_text = random_winner.text
-        logging.info(f"Randomly selected winner (no votes): '{winner_text}'")
+        current_span.add_event(
+            "Poll winner chosen by random because of no votes",
+            {"winner": winner_text, "votes": max_votes},
+        )
+        current_span.set_status(StatusCode.OK)
         return winner_text
 
     except telegram.error.BadRequest as e:
+        current_span.record_exception(e)
         err_text = str(e).lower()
         if "poll has already been closed" in err_text:
             logging.info(f"Poll (ID: {message_id}) was already closed.")
         if "message to stop poll not found" in err_text:
             logging.error(f"Could not find the poll message to stop (ID: {message_id})")
-        logging.error(f"Error stopping poll (BadRequest - ID: {message_id}): {e}")
     except telegram.error.Forbidden as e:
-        logging.error(f"Error stopping poll (Forbidden - ID: {message_id}): {e}.")
+        current_span.record_exception(e)
     except telegram.error.TelegramError as e:
-        logging.error(f"Error stopping poll (ID: {message_id}): {e}")
+        current_span.record_exception(e)
+    current_span.set_status(StatusCode.ERROR)
     return None
 
 
+@tracer.start_as_current_span("get_poll_winner")
 async def run_story_step(config: Config, openai_client: OpenAI) -> None:
     """Post the story continuation, an image and a poll."""
-    logging.info("Entering run_story_step")
+    current_span = trace.get_current_span()
     state = load_state()
     current_story = state.current_story
     last_poll_message_id = state.last_poll_message_id
     main_idea = state.main_idea
     story_finished = state.story_finished
+    current_span.set_attributes(
+        {
+            "story_finished": story_finished,
+            "last_poll_message_id": last_poll_message_id,
+        },
+    )
     if story_finished:
-        logging.info("Story is already finished. Exiting.")
+        current_span.add_event("Story is already finished. Exiting.")
         return
 
     bot = Bot(token=config.bot_token)
@@ -97,23 +125,22 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
     try:
         # try to get next prompt from poll
         if last_poll_message_id:
-            logging.info(f"Checking previous poll (ID: {last_poll_message_id})")
             poll_winner = await get_poll_winner(
                 bot,
                 config.channel_id,
                 last_poll_message_id,
             )
             if poll_winner:
+                current_span.set_attribute("poll_winner", poll_winner)
                 next_prompt = poll_winner
                 if poll_winner == config.end_story_option:
                     finish_story = True
-                    logging.info("Ending story based on poll.")
+                    current_span.add_event("Ending story based on poll.")
 
         if not current_story:
-            logging.info("No existing story found. Posting initial idea.")
+            current_span.add_event("No existing story found. Posting initial idea.")
             message_to_send = config.initial_story_idea
             current_story = config.initial_story_idea
-            logging.info("Generating main idea")
             (_, new_idea) = generate_story_continuation(
                 openai_client,
                 main_idea,
@@ -122,13 +149,13 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 0,
                 config,
             )
+            current_span.set_attribute("main_idea", new_idea)
             if config.gemini_tts_model:
                 audio = generate_audio_from_text(
                     config.gemini_tts_model,
                     current_story,
                 )
-            logging.info(f"Main idea generated: {new_idea}")
-            logging.info(f"Sending initial story part to {config.channel_id}")
+            current_span.add_event("Sending initial story part")
             message = await bot.send_message(
                 chat_id=config.channel_id,
                 text=message_to_send,
@@ -141,15 +168,15 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                     reply_parameters=reply_parameters,
                     filename="poll-story-telegram-bot",
                 )
-                logging.info("Audio sent.")
-            logging.info("Initial story part sent.")
+                current_span.add_event("Audio sent")
         else:
             sentences = len(current_story.split("."))
             completion = sentences / config.story_max_sentences
             if sentences > config.story_max_sentences:
-                logging.info(
-                    f"Current story has {sentences} sentences. "
+                current_span.add_event(
+                    "Current story has to many sentences. "
                     "Ending story based on length.",
+                    {"sentences": sentences},
                 )
                 finish_story = True
 
@@ -157,10 +184,8 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 logging.error("No prompt available for continuation. Using fallback.")
                 next_prompt = config.fallback_continue_prompt
 
-            logging.info(
-                "Generating story "
-                f"{'finish' if finish_story else f'continuation using {next_prompt}'} ",
-            )
+            current_span.set_attribute("finish_story", finish_story)
+            current_span.set_attribute("next_prompt", next_prompt)
             (new_story_part, new_idea) = generate_story_continuation(
                 openai_client,
                 main_idea,
@@ -170,6 +195,12 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 config,
                 end_story=finish_story,
             )
+            current_span.set_attributes(
+                {
+                    "new_story_part": new_story_part,
+                    "new_idea": new_idea,
+                },
+            )
 
             imagen_prompt = generate_imagen_prompt(
                 openai_client,
@@ -178,6 +209,7 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 config.image_prompt_start,
                 config.openai_model,
             )
+            current_span.set_attribute("imagen_prompt", imagen_prompt)
 
             image = make_gemini_image(
                 config.gemini_image_model,
@@ -190,13 +222,13 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                 )
 
             if not new_story_part or new_story_part.strip() == "":
-                logging.error(
+                current_span.set_status(
+                    StatusCode.ERROR,
                     "Story continuation failed or returned empty. "
                     "Story not updated. Interrupting step.",
                 )
                 raise RuntimeError("Failed to generate story continuation.")
 
-            logging.info(f"Sending new story part to {config.channel_id}")
             reply_parameters = None
             if image:
                 photo_message = await bot.send_photo(
@@ -204,9 +236,14 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                     photo=image,
                     has_spoiler=True,
                 )
+                current_span.add_event(
+                    "Sent photo",
+                    {"photo_message_id": photo_message.id},
+                )
                 reply_parameters = ReplyParameters(photo_message.id)
             telegram_max_message_length = 4096
             if len(new_story_part) > telegram_max_message_length:
+                current_span.add_event("Story part exceeds allowed limit of 4096")
                 parts = [
                     new_story_part[i : i + telegram_max_message_length]
                     for i in range(0, len(new_story_part), telegram_max_message_length)
@@ -216,14 +253,13 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                         chat_id=config.channel_id,
                         text=part,
                     )
-                    logging.info("New story part sent in multiple messages.")
             else:
                 new_story_part_message = await bot.send_message(
                     chat_id=config.channel_id,
                     text=new_story_part,
                     reply_parameters=reply_parameters,
                 )
-                logging.info("New story part sent.")
+                current_span.add_event("New story part sent.")
             if audio:
                 reply_parameters = ReplyParameters(new_story_part_message.message_id)
                 await bot.send_audio(
@@ -232,16 +268,15 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                     reply_parameters=reply_parameters,
                     filename="poll-story-telegram-bot",
                 )
-                logging.info("Audio sent.")
+                current_span.add_event("Audio sent.")
             current_story += new_story_part
         if not finish_story:
-            logging.info("Generating poll options based on current story...")
+            current_span.add_event("Generating poll options based on current story")
             make_end_story_option = False
             if sentences > config.story_max_sentences * 0.8:
                 make_end_story_option = True
-                logging.info(
-                    f"Story is {sentences} sentences long. "
-                    "Adding end story option to the poll.",
+                current_span.add_event(
+                    "Story is too long. Adding end story option to the poll.",
                 )
             poll_options = generate_poll_options(
                 openai_client,
@@ -251,13 +286,13 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
             )
 
             if not poll_options or len(poll_options) > telegram.Poll.MAX_OPTION_LENGTH:
-                logging.error(
+                current_span.add_event(
                     "Could not generate valid poll options. Skipping poll posting.",
                 )
                 new_poll_message_id = None
             else:
                 truncated_options = [opt[:90] for opt in poll_options]
-                logging.info(f"Generated {len(truncated_options)} poll options.")
+                current_span.add_event("Generated poll options.")
                 try:
                     reply_params = (
                         ReplyParameters(new_story_part_message.id)
@@ -272,14 +307,15 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
                         reply_parameters=reply_params,
                     )
                     new_poll_message_id = sent_poll_message.message_id
-                    logging.info(f"New poll sent (Message ID: {new_poll_message_id}).")
-                except telegram.error.TelegramError as poll_error:
-                    logging.error(
-                        f"Error sending poll: {poll_error}. Skipping poll posting.",
+                    current_span.add_event(
+                        "New poll sent",
+                        {"new_poll_message_id": new_poll_message_id},
                     )
+                except telegram.error.TelegramError as poll_error:
+                    current_span.record_exception(poll_error)
                     new_poll_message_id = None
         else:
-            logging.info("Ending story. No new poll will be posted.")
+            current_span.add_event("Ending story. No new poll will be posted.")
             new_poll_message_id = None
 
         if not config.dry_run:
@@ -291,12 +327,9 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
             )
             save_state(state, dry_run=config.dry_run)
         else:
-            logging.info("DRY_RUN is enabled. State not saved. ")
-        logging.info("Story Step Completed Successfully ")
+            current_span.add_event("DRY_RUN is enabled. State not saved. ")
+        current_span.set_status(StatusCode.OK)
 
     except Exception as e:
-        logging.error("\n--- An Unexpected Error Occurred During Story Step --- ")
-        logging.error(f"Error message: {e}, Trace: {traceback.format_exc()}")
-        logging.error(
-            "Script interrupted due to unexpected error. State NOT saved for this run.",
-        )
+        current_span.record_exception(e)
+        current_span.set_status(StatusCode.ERROR)

@@ -4,6 +4,9 @@ import logging
 import os
 
 from dotenv import dotenv_values, load_dotenv
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+from telemetry import tracer
 
 
 class Config:
@@ -33,9 +36,11 @@ class Config:
         self.fallback_continue_prompt = "Продолжай как считаешь нужным."
         self.end_story_option = "Закончить историю"
 
+    @tracer.start_as_current_span("validate")
     def validate(self) -> bool:
         """Validate the configuration loaded from environment variables."""
         valid = True
+        current_span = trace.get_current_span()
         if not self.bot_token:
             logging.error("BOT_TOKEN is not set correctly.")
             valid = False
@@ -63,4 +68,6 @@ class Config:
             valid = False
         if not self.gemini_tts_model:
             logging.warning("GEMINI_TTS_MODEL is not set. Audio will not be generated.")
+        if not valid:
+            current_span.set_status(Status(StatusCode.ERROR))
         return valid

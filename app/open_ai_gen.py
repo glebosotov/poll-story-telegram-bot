@@ -1,12 +1,15 @@
 """Code for OpenAI API calls to generate story continuations and poll options."""
 
 import json
-import logging
 
 from config import Config
-from openai import OpenAI, OpenAIError
+from openai import OpenAI
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+from telemetry import tracer
 
 
+@tracer.start_as_current_span("generate_story_continuation")
 def generate_story_continuation(  # noqa: PLR0913
     openai_client: OpenAI,
     main_idea: str,
@@ -17,11 +20,18 @@ def generate_story_continuation(  # noqa: PLR0913
     end_story: bool = False,
 ) -> tuple[str, str] | None:
     """Call OpenAI API to get the next story part using strict function calling."""
+    current_span = trace.get_current_span()
+    current_span.set_attributes(
+        {"end_story": end_story, "main_idea": main_idea},
+    )
     truncated_story = current_story
     if len(current_story) > config.max_context_chars:
-        logging.warning(
-            f"Current story context ({len(current_story)} chars) "
-            "exceeds limit ({max_context_chars}). Truncating.",
+        current_span.add_event(
+            "Exceedes max chars, truncating",
+            {
+                "length": len(current_story),
+                "max_chars": config.max_context_chars,
+            },
         )
         truncated_story = current_story[-config.max_context_chars :]
     # MAIN PROMPT
@@ -142,6 +152,7 @@ def generate_story_continuation(  # noqa: PLR0913
     }
 
     try:
+        current_span.add_event("Requesting completion")
         response = openai_client.chat.completions.create(
             model=config.openai_model,
             messages=[
@@ -160,40 +171,41 @@ def generate_story_continuation(  # noqa: PLR0913
             try:
                 arguments = json.loads(tool_calls[0].function.arguments)
             except json.JSONDecodeError as json_e:
-                logging.error(
-                    "Failed to parse JSON arguments "
-                    f"from OpenAI story response: {json_e}",
-                )
-                logging.error(
-                    f"Raw OpenAI arguments: {tool_calls[0].function.arguments}",
+                current_span.set_status(Status(StatusCode.ERROR))
+                current_span.record_exception(
+                    json_e,
+                    attributes={
+                        "Raw OpenAI arguments": tool_calls[0].function.arguments,
+                    },
                 )
                 return None
 
             reasoning = arguments.get("reasoning", "[Обоснование не предоставлено]")
             story_part = arguments.get("story_part")
             main_idea = arguments.get("main_idea")
-            logging.info(f"OpenAI Reasoning: {reasoning}")
+            current_span.set_attribute("reasoning", reasoning)
 
             if story_part and story_part.strip() and main_idea and main_idea.strip():
-                logging.info("OpenAI Story Part generated successfully.")
+                current_span.add_event("Story Part generated successfully")
                 # Add a newline for separation, ensure it's not just whitespace
                 return ("\n\n" + story_part.strip(), main_idea.strip())
-            logging.error(
+            current_span.set_status(
+                Status(StatusCode.ERROR),
                 "OpenAI returned arguments but 'story_part' was empty or invalid.",
             )
             return None
-        logging.error("Response did not contain the tool call 'write_story_part'.")
-        logging.debug(f"OpenAI Full Response choice 0: {response.choices[0]}")
-        return None
-
-    except OpenAIError as e:
-        logging.error(f"OpenAI API error during story generation: {e}", exc_info=True)
+        current_span.set_status(
+            Status(StatusCode.ERROR),
+            "Response did not contain the tool call 'write_story_part'.",
+        )
         return None
     except Exception as e:
-        logging.error(f"Unexpected error during story generation: {e}", exc_info=True)
+        current_span.set_status(Status(StatusCode.ERROR))
+        current_span.record_exception(e)
         return None
 
 
+@tracer.start_as_current_span("generate_story_continuation")
 def generate_poll_options(
     openai_client: OpenAI,
     full_story_context: str,
@@ -201,8 +213,9 @@ def generate_poll_options(
     make_end_story_option: bool = False,
 ) -> list[str] | None:
     """Call OpenAI API to get 4 poll options using strict function calling."""
+    current_span = trace.get_current_span()
+    current_span.set_attribute("make_end_story_option", make_end_story_option)
     story_options_count = 4
-    logging.info("Generating poll options via OpenAI...")
 
     truncated_context = full_story_context[-config.max_context_chars :]
 
@@ -241,6 +254,7 @@ def generate_poll_options(
     }
 
     try:
+        current_span.add_event("Requesting completion")
         response = openai_client.chat.completions.create(
             model=config.openai_model,
             messages=[
@@ -257,22 +271,24 @@ def generate_poll_options(
         tool_calls = response.choices[0].message.tool_calls
 
         if tool_calls and tool_calls[0].function.name != "suggest_poll_options":
-            logging.error(
-                "Response did not contain the tool 'suggest_poll_options'."
-                f"Full Response choice 0: {response.choices[0]}",
+            current_span.set_status(
+                Status(StatusCode.ERROR),
+                "Response did not contain the tool 'suggest_poll_options'.",
             )
             return None
 
         try:
             arguments = json.loads(tool_calls[0].function.arguments)
         except json.JSONDecodeError as e:
-            logging.error(
-                f"Failed to parse JSON arguments from OpenAI poll response: {e}."
-                f"Raw OpenAI arguments: {tool_calls[0].function.arguments}",
+            current_span.set_status(
+                Status(StatusCode.ERROR),
+                "Failed to parse JSON arguments from OpenAI poll response",
             )
+            current_span.record_exception(e)
             return None
 
         options = arguments.get("options")
+        current_span.set_attribute("options", options)
         if (
             isinstance(options, list)
             and len(options) == story_options_count
@@ -282,21 +298,21 @@ def generate_poll_options(
             if make_end_story_option:
                 validated_options[3] = config.end_story_option
             if len(validated_options) == story_options_count:
-                logging.info(f"OpenAI Poll Options generated: {validated_options}")
+                current_span.set_attribute("validated_options", validated_options)
+                current_span.set_status(Status(StatusCode.OK))
                 return validated_options
-            logging.error(f"OpenAI returned {len(validated_options)} valid options")
-            logging.info(f"Original options from API: {options}")
-            return None
-        logging.error(
-            "Returned invalid structure or content type for poll options."
-            f"Received options: {options}",
+        current_span.set_status(
+            Status(StatusCode.ERROR),
+            "Received invalid options",
         )
         return None
     except Exception as e:
-        logging.error(f"Unexpected error during poll option generation: {e}")
+        current_span.set_status(Status(StatusCode.ERROR))
+        current_span.record_exception(e)
         return None
 
 
+@tracer.start_as_current_span("generate_imagen_prompt")
 def generate_imagen_prompt(
     openai_client: OpenAI,
     current_story: str,
@@ -311,6 +327,7 @@ def generate_imagen_prompt(
     combining a narrative story and styling instructions using OpenAI's function
     calling feature with strict function invocation.
     """
+    current_span = trace.get_current_span()
     tools = {
         "type": "function",
         "function": {
@@ -358,11 +375,9 @@ def generate_imagen_prompt(
             ),
         },
     ]
-    logging.info(
-        f"Generating an image prompt using styling: {styling[:100]} "
-        f"and story: {current_story[:100]}...{current_story[-100:]}",
-    )
+    current_span.set_attributes({"styling": styling, "current_story": current_story})
     try:
+        current_span.add_event("Requesting completion")
         response = openai_client.chat.completions.create(
             model=openai_model,
             messages=messages,
@@ -378,9 +393,15 @@ def generate_imagen_prompt(
             arguments = json.loads(tool_call.function.arguments)
             prompt = arguments.get("prompt")
             if prompt:
+                current_span.set_attribute("result", prompt)
+                current_span.set_status(Status(StatusCode.OK))
                 return prompt
-            logging.error("OpenAI did not return a valid prompt in the function call.")
+        current_span.set_status(
+            Status(StatusCode.ERROR),
+            "Received invalid result",
+        )
         return None
     except Exception as e:
-        logging.error(f"Unexpected error during image prompt generation: {e}")
+        current_span.set_status(Status(StatusCode.ERROR))
+        current_span.record_exception(e)
         return None

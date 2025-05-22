@@ -67,7 +67,8 @@ This project automates the creation and delivery of engaging, AI-powered stories
     │   ├── main.py
     │   ├── open_ai_gen.py
     │   ├── state.py
-    │   └── telegram_poster.py
+    │   ├── telegram_poster.py
+    │   └── telemetry.py
     ├── docker-compose.yml
     ├── entrypoint.sh
     ├── pyproject.toml

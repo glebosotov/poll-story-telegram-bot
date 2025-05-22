@@ -6,19 +6,13 @@ import sys
 
 from config import Config
 from openai import OpenAI
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from telegram_poster import run_story_step
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-HTTPXClientInstrumentor().instrument()
 
 
 def main() -> None:
     """Run the script."""
     logging.info("Script execution started.")
+
     config = Config()
 
     if not config.validate():

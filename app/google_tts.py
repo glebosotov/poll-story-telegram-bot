@@ -1,18 +1,22 @@
 """Generate audio from text using the Google Gemini SDK."""
 
 import logging
-import traceback
 
 import ffmpeg
 from google import genai
 from google.genai import types
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+from telemetry import tracer
 
 
+@tracer.start_as_current_span("generate_audio_from_text")
 def generate_audio_from_text(
     model: str,
     prompt: str,
 ) -> bytes | None:
     """Generate ogg audio from text using the Google Generative AI SDK."""
+    current_span = trace.get_current_span()
     try:
         client = genai.Client(
             http_options=types.HttpOptions(timeout=10 * 60 * 1000),
@@ -27,8 +31,12 @@ def generate_audio_from_text(
             "- just the transcript, no other words"
             f"Create it from the following text: {prompt}",
         ).text
-        logging.info(f"Short TTS prompt: {prompt}")
         ###
+
+        current_span.add_event(
+            "Got short prompt",
+            {"prompt": prompt},
+        )
 
         contents = f"Read like a storyteller recording an audiobook: {prompt}"
 
@@ -44,6 +52,11 @@ def generate_audio_from_text(
             ),
         )
 
+        current_span.add_event(
+            "Starting audio generation",
+            {"full_prompt": contents, "model": model},
+        )
+
         response = client.models.generate_content(
             model=model,
             contents=contents,
@@ -52,20 +65,19 @@ def generate_audio_from_text(
 
         data = response.candidates[0].content.parts[0].inline_data.data
 
-        logging.info(f"Gemini returned {len(data)} bytes of audio")
+        current_span.add_event(
+            "Received data",
+            {"length": len(data)},
+        )
 
         if data:
-            with open("out.wav", "wb") as f:
-                f.write(data)
             return raw_bytes_to_ogg_bytes(data)
 
         raise Exception("Gemini returned None")
 
     except Exception as e:
-        logging.error(
-            f"An unexpected error occurred during TTS generation: {e}, "
-            f"{traceback.format_exc()}",
-        )
+        current_span.set_status(Status(StatusCode.ERROR))
+        current_span.record_exception(e)
         return None
 
 
