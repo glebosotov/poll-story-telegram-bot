@@ -4,9 +4,13 @@ services:
         container_name: llm-bot
         environment:
             - OTEL_SERVICE_NAME=poll-story-telegram
+            - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
             - OTEL_TRACES_EXPORTER=otlp
             - OTEL_METRICS_EXPORTER=otlp
-            - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=0.0.0.0:4317
+            - OTEL_LOGS_EXPORTER=otlp,console
+            - OTEL_EXPORTER_OTLP_ENDPOINT=0.0.0.0:4317
+            - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+            - OTEL_EXPORTER_OTLP_INSECURE=true
         volumes:
             - .env:/app/.env
             - ./logs:/app/logs

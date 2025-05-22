@@ -9,6 +9,7 @@ dependencies = [
     "google-genai>=1.14.0",
     "openai>=1.78.0",
     "opentelemetry-distro>=0.54b1",
+    "opentelemetry-exporter-otlp>=1.33.1",
     "opentelemetry-instrumentation-httpx>=0.54b1",
     "python-dotenv>=1.1.0",
     "python-telegram-bot>=22.0",
