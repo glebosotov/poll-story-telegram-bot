@@ -4,6 +4,10 @@
 mkdir -p /app/logs
 chmod -R 755 /app/logs
 
+env > /etc/environment
+
+echo "Saved" $(cat /etc/environment | wc -l) env variables
+
 # Install cron entries into root's crontab
 crontab /etc/cron.d/python-cron
 

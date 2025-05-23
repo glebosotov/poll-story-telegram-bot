@@ -93,7 +93,7 @@ async def get_poll_winner(bot: Bot, chat_id: str | int, message_id: int) -> str 
     return None
 
 
-@tracer.start_as_current_span("get_poll_winner")
+@tracer.start_as_current_span("run_story_step")
 async def run_story_step(config: Config, openai_client: OpenAI) -> None:
     """Post the story continuation, an image and a poll."""
     current_span = trace.get_current_span()
