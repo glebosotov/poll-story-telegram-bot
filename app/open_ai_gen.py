@@ -1,6 +1,7 @@
 """Code for OpenAI API calls to generate story continuations and poll options."""
 
 import json
+import logging
 
 from config import Config
 from openai import OpenAI
@@ -22,17 +23,17 @@ def generate_story_continuation(  # noqa: PLR0913
     """Call OpenAI API to get the next story part using strict function calling."""
     current_span = trace.get_current_span()
     current_span.set_attributes(
-        {"end_story": end_story, "main_idea": main_idea},
+        {
+            "generate_story_continuation.end_story": end_story,
+            "generate_story_continuation.main_idea": main_idea,
+            "generate_story_continuation.length": len(current_story),
+            "generate_story_continuation.max_chars": config.max_context_chars,
+            "generate_story_continuation.completion": completion,
+        },
     )
     truncated_story = current_story
     if len(current_story) > config.max_context_chars:
-        current_span.add_event(
-            "Exceedes max chars, truncating",
-            {
-                "length": len(current_story),
-                "max_chars": config.max_context_chars,
-            },
-        )
+        current_span.add_event("Exceedes max chars, truncating")
         truncated_story = current_story[-config.max_context_chars :]
     # MAIN PROMPT
     system_prompt = """
@@ -153,6 +154,8 @@ def generate_story_continuation(  # noqa: PLR0913
 
     try:
         current_span.add_event("Requesting completion")
+        logging.info(f"generate_story_continuation User prompt: {user_prompt}")
+        logging.info(f"generate_story_continuation System prompt: {system_prompt}")
         response = openai_client.chat.completions.create(
             model=config.openai_model,
             messages=[
@@ -183,10 +186,11 @@ def generate_story_continuation(  # noqa: PLR0913
             reasoning = arguments.get("reasoning", "[Обоснование не предоставлено]")
             story_part = arguments.get("story_part")
             main_idea = arguments.get("main_idea")
-            current_span.set_attribute("reasoning", reasoning)
+            logging.info(f"Reasoning: {reasoning}")
 
             if story_part and story_part.strip() and main_idea and main_idea.strip():
                 current_span.add_event("Story Part generated successfully")
+                current_span.set_status(StatusCode.OK)
                 # Add a newline for separation, ensure it's not just whitespace
                 return ("\n\n" + story_part.strip(), main_idea.strip())
             current_span.set_status(
@@ -205,7 +209,7 @@ def generate_story_continuation(  # noqa: PLR0913
         return None
 
 
-@tracer.start_as_current_span("generate_story_continuation")
+@tracer.start_as_current_span("generate_poll_options")
 def generate_poll_options(
     openai_client: OpenAI,
     full_story_context: str,
@@ -299,7 +303,10 @@ def generate_poll_options(
                 validated_options[3] = config.end_story_option
             if len(validated_options) == story_options_count:
                 current_span.set_attribute("validated_options", validated_options)
-                current_span.set_status(Status(StatusCode.OK))
+                current_span.set_status(StatusCode.OK)
+                logging.info(
+                    f"generate_poll_options Validated options: {validated_options}",
+                )
                 return validated_options
         current_span.set_status(
             Status(StatusCode.ERROR),
@@ -375,7 +382,7 @@ def generate_imagen_prompt(
             ),
         },
     ]
-    current_span.set_attributes({"styling": styling, "current_story": current_story})
+    logging.info(f"styling: {styling}, current_story: {current_story}")
     try:
         current_span.add_event("Requesting completion")
         response = openai_client.chat.completions.create(
@@ -393,8 +400,8 @@ def generate_imagen_prompt(
             arguments = json.loads(tool_call.function.arguments)
             prompt = arguments.get("prompt")
             if prompt:
-                current_span.set_attribute("result", prompt)
-                current_span.set_status(Status(StatusCode.OK))
+                logging.info(f"generate_imagen_prompt result: {prompt}")
+                current_span.set_status(StatusCode.OK)
                 return prompt
         current_span.set_status(
             Status(StatusCode.ERROR),

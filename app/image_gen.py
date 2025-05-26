@@ -16,10 +16,7 @@ def make_gemini_image(
     current_span = trace.get_current_span()
     client = genai.Client()
 
-    current_span.add_event(
-        "Making image with prompt",
-        {"prompt": prompt, "model": model},
-    )
+    current_span.set_attributes({"prompt": prompt, "model": model})
 
     try:
         response = client.models.generate_images(
@@ -30,7 +27,10 @@ def make_gemini_image(
             ),
         )
 
-        return response.generated_images[0].image.image_bytes
+        image_bytes = response.generated_images[0].image.image_bytes
+        if image_bytes:
+            current_span.set_status(StatusCode.OK)
+        return image_bytes
     except Exception as e:
         current_span.set_status(Status(StatusCode.ERROR))
         current_span.record_exception(e)

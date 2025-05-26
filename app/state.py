@@ -5,7 +5,7 @@ from typing import NamedTuple
 
 import yaml
 from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import StatusCode
 from telemetry import tracer
 
 state_dir = Path(__file__).parent / "state"
@@ -41,7 +41,7 @@ def load_state() -> StoryState:
                 main_idea = state.get(main_idea_key, "")
                 last_poll_message_id = state.get(last_poll_message_id_key, None)
                 story_finished = state.get(story_finished_key, False)
-                current_span.set_status(Status(StatusCode.OK))
+                current_span.set_status(StatusCode.OK)
                 return StoryState(
                     current_story,
                     main_idea,
@@ -49,7 +49,7 @@ def load_state() -> StoryState:
                     story_finished,
                 )
         except OSError as e:
-            current_span.set_status(Status(StatusCode.ERROR))
+            current_span.set_status(StatusCode.ERROR)
             current_span.record_exception(e)
     else:
         current_span.add_event("File not found")
@@ -76,7 +76,7 @@ def save_state(
     try:
         with open(state_file, "w", encoding="utf-8") as f:
             yaml.dump(state, f, allow_unicode=True)
-        current_span.set_status(Status(StatusCode.OK))
+        current_span.set_status(StatusCode.OK)
     except OSError as e:
-        current_span.set_status(Status(StatusCode.ERROR), "Error saving state file")
+        current_span.set_status(StatusCode.ERROR, "Error saving state file")
         current_span.record_exception(e)

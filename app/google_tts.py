@@ -17,6 +17,7 @@ def generate_audio_from_text(
 ) -> bytes | None:
     """Generate ogg audio from text using the Google Generative AI SDK."""
     current_span = trace.get_current_span()
+    current_span.set_attribute("model", model)
     try:
         client = genai.Client(
             http_options=types.HttpOptions(timeout=10 * 60 * 1000),
@@ -39,6 +40,7 @@ def generate_audio_from_text(
         )
 
         contents = f"Read like a storyteller recording an audiobook: {prompt}"
+        logging.info(f"generate_audio_from_text TTS prompt: {contents}")
 
         config = types.GenerateContentConfig(
             response_modalities=["AUDIO"],
@@ -52,10 +54,7 @@ def generate_audio_from_text(
             ),
         )
 
-        current_span.add_event(
-            "Starting audio generation",
-            {"full_prompt": contents, "model": model},
-        )
+        current_span.add_event("Starting audio generation")
 
         response = client.models.generate_content(
             model=model,
@@ -65,10 +64,8 @@ def generate_audio_from_text(
 
         data = response.candidates[0].content.parts[0].inline_data.data
 
-        current_span.add_event(
-            "Received data",
-            {"length": len(data)},
-        )
+        current_span.add_event("Received data")
+        current_span.set_attribute("generate_audio_from_text.data", len(data))
 
         if data:
             return raw_bytes_to_ogg_bytes(data)
@@ -81,6 +78,7 @@ def generate_audio_from_text(
         return None
 
 
+@tracer.start_as_current_span("raw_bytes_to_ogg_bytes")
 def raw_bytes_to_ogg_bytes(
     raw_bytes: bytes,
     sample_rate: int = 24000,
@@ -93,6 +91,7 @@ def raw_bytes_to_ogg_bytes(
 
     Returns OGG bytes.
     """
+    current_span = trace.get_current_span()
     process = (
         ffmpeg.input("pipe:0", format=sample_fmt, ar=str(sample_rate), ac=channels)
         .output("pipe:1", format="ogg", acodec=codec)
@@ -103,4 +102,6 @@ def raw_bytes_to_ogg_bytes(
     if process.returncode != 0:
         raise RuntimeError(f"ffmpeg error: {err.decode()}")
     logging.info(f"ffmpeg returned {len(out)} bytes of OGG audio")
+    current_span.set_attribute("ffmpeg.length", len(out))
+    current_span.set_status(StatusCode.OK)
     return out

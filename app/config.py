@@ -5,7 +5,7 @@ import os
 
 from dotenv import dotenv_values, load_dotenv
 from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import StatusCode
 from telemetry import tracer
 
 
@@ -69,5 +69,7 @@ class Config:
         if not self.gemini_tts_model:
             logging.warning("GEMINI_TTS_MODEL is not set. Audio will not be generated.")
         if not valid:
-            current_span.set_status(Status(StatusCode.ERROR))
+            current_span.set_status(StatusCode.ERROR)
+        else:
+            current_span.set_status(StatusCode.OK)
         return valid
