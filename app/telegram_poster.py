@@ -105,7 +105,9 @@ async def run_story_step(config: Config, openai_client: OpenAI) -> None:
     current_span.set_attributes(
         {
             "story_finished": story_finished,
-            "last_poll_message_id": last_poll_message_id,
+            "last_poll_message_id": last_poll_message_id
+            if last_poll_message_id
+            else -1,
         },
     )
     if story_finished:
